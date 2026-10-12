@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg flex-1" id="busca" placeholder="Buscar produto...">
+    <button class="btn btn-success" onclick="abrirModal()">+ Novo Produto</button>
+</div>
+
+<div class="tabela-wrap">
+    <table class="tabela" id="tabela">
+        <thead><tr><th></th><th>ID</th><th>Nome</th><th>Código</th><th>Categoria</th><th>Qtd</th><th>Min</th><th>Custo</th><th>Venda</th><th>IVA</th><th>Un</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Novo Produto</h3>
+        <input type="hidden" id="prodId">
+        <div class="form-group"><label>Nome *</label><input class="input w-full" id="fNome"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Código Barras</label><input class="input w-full" id="fCodigo"></div>
+            <div class="form-group"><label>Unidade</label><select class="input w-full" id="fUn"><option>UN</option><option>KG</option><option>L</option><option>M</option><option>CX</option><option>PCT</option></select></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Preço Custo (MT)</label><input class="input w-full" id="fCusto" type="number" step="0.01"></div>
+            <div class="form-group"><label>Preço Venda (MT)</label><input class="input w-full" id="fVenda" type="number" step="0.01"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Quantidade</label><input class="input w-full" id="fQtd" type="number" step="0.01"></div>
+            <div class="form-group"><label>Qtd Mínima</label><input class="input w-full" id="fMin" type="number" step="0.01"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>IVA (%)</label><input class="input w-full" id="fIva" type="number" step="0.5" value="0"></div>
+        </div>
+        <div class="form-group"><label>Categoria</label><select class="input w-full" id="fCat"></select></div>
+        <div class="form-group"><label>Descrição</label><input class="input w-full" id="fDesc"></div>
+        <div class="form-group">
+            <label>Foto</label>
+            <div class="flex gap-2 items-center">
+                <input class="input" id="fFotoInput" type="file" accept="image/*" style="flex:1">
+                <img id="fFotoPreview" class="prod-foto-preview" style="display:none;width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--borda)">
+                <input type="hidden" id="fFoto">
+            </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvar()">💾 Salvar</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let dados = [];
+let categorias = [];
+
+function carregar() {
+    fetch('/api/produtos').then(r=>r.json()).then(data => {
+        dados = data;
+        render('');
+    });
+    fetch('/api/categorias').then(r=>r.json()).then(data => {
+        categorias = data;
+        const sel = document.getElementById('fCat');
+        sel.innerHTML = '<option value="">Sem categoria</option>';
+        data.forEach(c => {
+            sel.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+        });
+    });
+}
+
+function render(busca) {
+    const tbody = document.getElementById('tbody');
+    const b = (busca||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    tbody.innerHTML = '';
+    dados.filter(p => {
+        if (!b) return true;
+        return (p.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(b) ||
+               (p.codigo_barras||'').toLowerCase().includes(b);
+    }).forEach(p => {
+        const pq = parseFloat(p.quantidade)||0;
+        const pm = parseFloat(p.quantidade_minima)||0;
+        const baixo = pm > 0 && pq <= pm;
+        const critico = pm > 0 && pq <= pm/2;
+        const qtdClass = critico ? 'stock-critical' : (baixo ? 'stock-alert' : '');
+        const fotoUrl = p.foto ? `/api/produtos/foto/${p.foto}` : '';
+        tbody.innerHTML += `<tr${baixo?' class="row-baixo"':''}>
+            <td>${fotoUrl ? `<img src="${fotoUrl}" class="prod-foto-thumb" loading="lazy">` : '<span class="prod-foto-placeholder">📷</span>'}</td>
+            <td>${p.id}</td>
+            <td>${p.nome}</td>
+            <td>${p.codigo_barras||'-'}</td>
+            <td>${p.categoria||'-'}</td>
+            <td class="${qtdClass}">${pq}${critico?' ⚠️':''}</td>
+            <td>${pm}</td>
+            <td>${moeda(p.preco_custo)}</td>
+            <td>${moeda(p.preco_venda)}</td>
+            <td>${p.iva||0}%</td>
+            <td>${p.unidade||'UN'}</td>
+            <td><button class="btn btn-sm btn-outline" onclick="editar(${p.id})">✏️</button> <button class="btn btn-sm btn-danger" onclick="excluir(${p.id})">🗑️</button></td>
+        </tr>`;
+    });
+}
+
+function abrirModal(d) {
+    document.getElementById('modal').classList.add('open');
+    document.getElementById('modalTitle').textContent = d ? 'Editar Produto' : 'Novo Produto';
+    document.getElementById('prodId').value = d ? d.id : '';
+    document.getElementById('fNome').value = d ? d.nome : '';
+    document.getElementById('fCodigo').value = d ? d.codigo_barras : '';
+    document.getElementById('fUn').value = d ? (d.unidade||'UN') : 'UN';
+    document.getElementById('fCusto').value = d ? d.preco_custo : '';
+    document.getElementById('fVenda').value = d ? d.preco_venda : '';
+    document.getElementById('fIva').value = d ? (d.iva||0) : 0;
+    document.getElementById('fQtd').value = d ? d.quantidade : '';
+    document.getElementById('fMin').value = d ? d.quantidade_minima : '';
+    document.getElementById('fDesc').value = d ? d.descricao : '';
+    document.getElementById('fCat').value = d ? (d.categoria_id||'') : '';
+    document.getElementById('fFoto').value = d ? (d.foto||'') : '';
+    const preview = document.getElementById('fFotoPreview');
+    const fotoUrl = d && d.foto ? `/api/produtos/foto/${d.foto}` : '';
+    if (fotoUrl) { preview.src = fotoUrl; preview.style.display = 'block'; }
+    else { preview.style.display = 'none'; }
+}
+
+function fecharModal() {
+    document.getElementById('modal').classList.remove('open');
+    document.getElementById('fFotoInput').value = '';
+}
+
+document.getElementById('fFotoInput').addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('foto', file);
+    fetch('/api/produtos/foto', {method:'POST', body:formData})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) {
+            document.getElementById('fFoto').value = res.foto;
+            const preview = document.getElementById('fFotoPreview');
+            preview.src = `/api/produtos/foto/${res.foto}`;
+            preview.style.display = 'block';
+            notif('Foto enviada!');
+        } else { notif(res.erro||'Erro ao enviar foto', true); }
+    }).catch(() => notif('Erro ao enviar foto', true));
+});
+
+function salvar() {
+    const id = document.getElementById('prodId').value;
+    const data = {
+        nome: document.getElementById('fNome').value.trim(),
+        codigo: document.getElementById('fCodigo').value.trim(),
+        unidade: document.getElementById('fUn').value,
+        preco_custo: parseFloat(document.getElementById('fCusto').value) || 0,
+        preco_venda: parseFloat(document.getElementById('fVenda').value) || 0,
+        quantidade: parseFloat(document.getElementById('fQtd').value) || 0,
+        quantidade_minima: parseFloat(document.getElementById('fMin').value) || 0,
+        categoria_id: document.getElementById('fCat').value || null,
+        iva: parseFloat(document.getElementById('fIva').value) || 0,
+        descricao: document.getElementById('fDesc').value.trim(),
+        foto: document.getElementById('fFoto').value || null
+    };
+    if (!data.nome) { notif('Nome é obrigatório!', true); return; }
+    const url = id ? `/api/produtos/${id}` : '/api/produtos';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif(id ? 'Produto atualizado!' : 'Produto criado!'); fecharModal(); carregar(); }
+        else { notif('Erro ao salvar', true); }
+    });
+}
+
+function editar(id) {
+    const d = dados.find(p => p.id === id);
+    if (d) abrirModal(d);
+}
+
+function excluir(id) {
+    if (!confirm('Excluir produto?')) return;
+    fetch(`/api/produtos/${id}`, {method:'DELETE'})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Produto excluído!'); carregar(); }
+        else { notif(res.erro||'Erro ao excluir', true); }
+    });
+}
+
+document.getElementById('busca').addEventListener('input', e => render(e.target.value));
+document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) fecharModal();
+});
+carregar();
+</script>
+{% endblock %}

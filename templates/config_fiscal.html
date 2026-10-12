@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-hero card card-accent mb-4">
+    <div class="page-hero-inner">
+        <div>
+            <p class="eyebrow">AT Moçambique</p>
+            <h1>Configuração Fiscal</h1>
+            <p class="hero-subtitle">Integração com a Autoridade Tributária de Moçambique — e-Fatura (e-Factura).</p>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-2 mb-4">
+    <div class="card">
+        <div class="card-header"><h3>🏢 Dados da Empresa</h3></div>
+        <div class="card-body">
+            <div class="form-group"><label>Nome</label><input class="input w-full" id="cfg_empresa_nome"></div>
+            <div class="form-group"><label>NIF</label><input class="input w-full" id="cfg_empresa_nif"></div>
+            <div class="form-group"><label>Endereço</label><input class="input w-full" id="cfg_empresa_endereco"></div>
+            <div class="form-row">
+                <div class="form-group"><label>Telefone</label><input class="input w-full" id="cfg_empresa_telefone"></div>
+                <div class="form-group"><label>Email</label><input class="input w-full" id="cfg_empresa_email"></div>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h3>⚙️ Configurações AT</h3></div>
+        <div class="card-body">
+            <div class="form-group"><label>Chave de Validação</label><input class="input w-full" id="cfg_at_validacao_key"></div>
+            <div class="form-group"><label>Ambiente</label><select class="input w-full" id="cfg_at_ambiente"><option value="teste">Teste</option><option value="producao">Produção</option></select></div>
+            <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarConfig()">💾 Salvar Configurações</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header flex items-center justify-between">
+        <h3>📄 Séries Fiscais</h3>
+        <button class="btn btn-sm btn-primary" onclick="abrirModalSerie()">+ Nova Série</button>
+    </div>
+    <div class="card-body">
+        <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Tipo</th><th>Série</th><th>Nº Atual</th><th>Nº Máx</th><th>Ativo</th></tr></thead>
+            <tbody id="tbodySeries"></tbody>
+        </table></div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header flex items-center justify-between">
+        <h3>📨 Documentos Fiscais — e-Fatura</h3>
+        <div class="flex gap-2">
+            <select class="input input-sm" id="filtroAtStatus">
+                <option value="">Todos</option>
+                <option value="validado">Validados</option>
+                <option value="rejeitado">Rejeitados</option>
+                <option value="pendente">Pendentes</option>
+            </select>
+            <button class="btn btn-sm btn-success" onclick="enviarPendentes()">📨 Enviar Pendentes</button>
+            <a href="/api/fiscal/at/saft" class="btn btn-sm btn-outline" target="_blank">📥 SAF-T</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Doc</th><th>Tipo</th><th>Série</th><th>Nº</th><th>Cliente</th><th>Total</th><th>Status AT</th><th>Data Envio</th><th>Ações</th></tr></thead>
+            <tbody id="tbodyAtDocs"></tbody>
+        </table></div>
+    </div>
+</div>
+
+<div class="modal" id="modalSerie"><div class="modal-content"><h3>Nova Série Fiscal</h3>
+    <div class="form-group"><label>Tipo Documento</label><select class="input w-full" id="sTipo"></select></div>
+    <div class="form-group"><label>Série</label><input class="input w-full" id="sSerie"></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="criarSerie()">💾 Criar</button><button class="btn btn-outline" onclick="fecharModal('modalSerie')">Cancelar</button></div>
+</div></div>
+
+<div class="modal modal-lg" id="modalLog"><div class="modal-content"><h3>📋 Log de Envio</h3><div id="logContent"></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-outline" onclick="fecharModal('modalLog')">Fechar</button></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let tipos = [];
+function carregar() {
+    fetch('/api/fiscal/at/config').then(r=>r.json()).then(cfg => {
+        document.getElementById('cfg_empresa_nome').value = cfg.empresa_nome||'';
+        document.getElementById('cfg_empresa_nif').value = cfg.empresa_nif||'';
+        document.getElementById('cfg_empresa_endereco').value = cfg.empresa_endereco||'';
+        document.getElementById('cfg_empresa_telefone').value = cfg.empresa_telefone||'';
+        document.getElementById('cfg_empresa_email').value = cfg.empresa_email||'';
+        document.getElementById('cfg_at_validacao_key').value = cfg.at_validacao_key||'';
+        document.getElementById('cfg_at_ambiente').value = cfg.at_ambiente||'teste';
+    });
+    fetch('/api/fiscal/series').then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodySeries');t.innerHTML='';
+        d.forEach(s=>{t.innerHTML+=`<tr><td>${s.tipo_documento}</td><td>${s.serie}</td><td>${s.numero_atual}</td><td>${s.numero_maximo}</td><td>${s.ativo?'✅':'❌'}</td></tr>`;});
+    });
+    fetch('/api/fiscal/tipos').then(r=>r.json()).then(d=>{tipos=d;
+        const sel=document.getElementById('sTipo');sel.innerHTML='';
+        d.forEach(t=>{sel.innerHTML+=`<option value="${t.sigla}">${t.nome}</option>`;});
+    });
+    carregarAtDocs();
+}
+function carregarAtDocs() {
+    const status = document.getElementById('filtroAtStatus').value;
+    fetch('/api/fiscal/at/documentos'+(status?'?status='+status:''))
+    .then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyAtDocs');t.innerHTML='';
+        d.forEach(doc=>{
+            const st = doc.at_status || 'pendente';
+            const stClass = st==='validado'?'success':st==='rejeitado'?'danger':'aviso';
+            t.innerHTML+=`<tr>
+                <td>#${doc.id}</td><td>${doc.tipo_documento}</td><td>${doc.serie}</td><td>${doc.numero}</td>
+                <td>${doc.cliente_nome||'-'}</td><td>${moeda(doc.total)}</td>
+                <td><span class="tag tag-${stClass}">${st}</span></td>
+                <td>${doc.at_data_envio||'-'}</td>
+                <td class="flex gap-1">
+                    ${st!=='validado'?`<button class="btn btn-sm btn-success" onclick="enviarDoc(${doc.id})">📨</button>`:''}
+                    <button class="btn btn-sm btn-outline" onclick="verLog(${doc.id})">📋</button>
+                    <a href="/api/fiscal/at/documentos/${doc.id}/xml" class="btn btn-sm btn-outline" target="_blank">📄</a>
+                </td>
+            </tr>`;
+        });
+    });
+}
+function salvarConfig() {
+    const data = {
+        empresa_nome: document.getElementById('cfg_empresa_nome').value.trim(),
+        empresa_nif: document.getElementById('cfg_empresa_nif').value.trim(),
+        empresa_endereco: document.getElementById('cfg_empresa_endereco').value.trim(),
+        empresa_telefone: document.getElementById('cfg_empresa_telefone').value.trim(),
+        empresa_email: document.getElementById('cfg_empresa_email').value.trim(),
+        at_validacao_key: document.getElementById('cfg_at_validacao_key').value.trim(),
+        at_ambiente: document.getElementById('cfg_at_ambiente').value
+    };
+    fetch('/api/fiscal/at/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.ok){notif('Configurações salvas!');}});
+}
+function abrirModalSerie(){document.getElementById('modalSerie').classList.add('open');}
+function fecharModal(id){document.getElementById(id).classList.remove('open');}
+function criarSerie(){
+    const tipo=document.getElementById('sTipo').value;
+    const serie=document.getElementById('sSerie').value.trim();
+    if(!tipo||!serie){notif('Preencha tipo e série!',true);return;}
+    notif('Série criada (use o endpoint POST /api/fiscal/series)');
+    fecharModal('modalSerie');
+}
+function enviarDoc(id) {
+    fetch('/api/fiscal/at/documentos/'+id+'/enviar',{method:'POST'})
+    .then(r=>r.json()).then(res=>{
+        notif(res.ok?'Documento enviado com sucesso!':'Falha no envio: '+res.erro, !res.ok);
+        carregarAtDocs();
+    });
+}
+function enviarPendentes() {
+    fetch('/api/fiscal/at/enviar-pendentes',{method:'POST'})
+    .then(r=>r.json()).then(res=>{
+        const qtd = (res.resultados||[]).length;
+        notif(qtd+' documento(s) processados!');
+        carregarAtDocs();
+    });
+}
+function verLog(id) {
+    fetch('/api/fiscal/at/documentos/'+id+'/log').then(r=>r.json()).then(d=>{
+        const el=document.getElementById('logContent');
+        if(!d.length){el.innerHTML='<p class="text-sm">Nenhum registo de envio.</p>';}
+        else{
+            let html='<div class="tabela-wrap"><table class="tabela"><thead><tr><th>Data</th><th>Tipo</th><th>Status</th><th>Resposta</th></tr></thead><tbody>';
+            d.forEach(l=>{html+=`<tr><td>${l.data_envio}</td><td>${l.tipo}</td><td>${l.status}</td><td>${l.resposta||'-'}</td></tr>`;});
+            html+='</tbody></table></div>';
+            el.innerHTML=html;
+        }
+        document.getElementById('modalLog').classList.add('open');
+    });
+}
+document.getElementById('filtroAtStatus').addEventListener('change',carregarAtDocs);
+carregar();
+</script>
+{% endblock %}

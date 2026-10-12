@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <button class="btn btn-primary" onclick="abrirModal()">+ Novo Utilizador</button>
+</div>
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>ID</th><th>Nome</th><th>Cargo</th><th>Permissões</th><th>Ativo</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<div class="modal" id="modal">
+    <div class="modal-content modal-sm">
+        <h3 id="modalTitle">Novo Utilizador</h3>
+        <input type="hidden" id="editId">
+        <div class="form-group"><label>Nome</label><input class="input" id="fNome"></div>
+        <div class="form-row">
+            <div class="form-group"><label>PIN (4 dígitos)</label><input class="input" id="fPin" type="password" maxlength="4" inputmode="numeric"></div>
+            <div class="form-group"><label>Cargo</label>
+                <select class="input" id="fRole"><option value="caixa">Caixa</option><option value="gerente">Gerente</option></select>
+            </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvar()">💾 Salvar</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+<div class="modal modal-lg" id="modalPerms">
+    <div class="modal-content">
+        <h3>Permissões: <span id="permsUserName"></span></h3>
+        <input type="hidden" id="permsUserId">
+        <div class="grid grid-2" id="permsList"></div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvarPermissoes()">💾 Salvar Permissões</button>
+            <button class="btn btn-outline" onclick="fecharModal('modalPerms')">Fechar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dados = [];
+let tiposPerms = [];
+
+function carregar() {
+    fetch('/api/permissoes').then(r=>r.json()).then(d=>{dados=d;render();});
+    fetch('/api/permissoes/tipos').then(r=>r.json()).then(d=>{tiposPerms=d;});
+}
+function render() {
+    document.getElementById('tbody').innerHTML = dados.map(u => {
+        const perms = (u.permissoes||'').split(',').filter(Boolean).length;
+        return `<tr>
+            <td>${u.id}</td><td>${u.nome}</td>
+            <td><span class="tag tag-${u.role==='gerente'?'info':'aviso'}">${u.role}</span></td>
+            <td><span class="tag tag-info" style="cursor:pointer" onclick="abrirPerms(${u.id},'${u.nome}')">${perms} permissões</span></td>
+            <td>${u.ativo ? '<span style="color:var(--sucesso)">✓</span>' : '<span style="color:var(--texto3)">✗</span>'}</td>
+            <td>
+                <span class="acao-excluir" onclick="editar(${u.id})">✏️</span>
+                <span class="acao-excluir" onclick="toggleAtivo(${u.id},${u.ativo})">${u.ativo?'⏸️':'▶️'}</span>
+                <span class="acao-excluir" onclick="excluir(${u.id},'${u.nome}')">🗑️</span>
+            </td>
+        </tr>`;
+    }).join('');
+}
+function abrirPerms(id, nome) {
+    document.getElementById('permsUserId').value = id;
+    document.getElementById('permsUserName').textContent = nome;
+    fetch('/api/permissoes/'+id).then(r=>r.json()).then(userPerms => {
+        const el = document.getElementById('permsList');
+        el.innerHTML = tiposPerms.map(t => {
+            const checked = userPerms.includes(t.chave) ? 'checked' : '';
+            return `<label class="flex items-center gap-2 p-1" style="cursor:pointer">
+                <input type="checkbox" class="perm-checkbox" data-chave="${t.chave}" ${checked}>
+                <span class="text-sm">${t.label}</span>
+            </label>`;
+        }).join('');
+        document.getElementById('modalPerms').classList.add('open');
+    });
+}
+function salvarPermissoes() {
+    const id = document.getElementById('permsUserId').value;
+    const permissoes = Array.from(document.querySelectorAll('.perm-checkbox:checked')).map(el => el.dataset.chave);
+    fetch('/api/permissoes/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({permissoes})})
+    .then(r=>r.json()).then(res => {if(res.ok){notif('Permissões atualizadas!');fecharModal('modalPerms');carregar();}});
+}
+function fecharModal(id) { document.getElementById(id||'modal').classList.remove('open'); }
+function abrirModal(d) {
+    document.getElementById('modal').classList.add('open');
+    document.getElementById('modalTitle').textContent = d ? 'Editar Utilizador' : 'Novo Utilizador';
+    document.getElementById('editId').value = d ? d.id : '';
+    document.getElementById('fNome').value = d ? d.nome : '';
+    document.getElementById('fPin').value = '';
+    document.getElementById('fRole').value = d ? d.role : 'caixa';
+}
+function salvar() {
+    const id=document.getElementById('editId').value, nome=document.getElementById('fNome').value.trim(), pin=document.getElementById('fPin').value.trim(), role=document.getElementById('fRole').value;
+    if(!nome){notif('Nome obrigatório!',true);return;}
+    const data={nome,role};if(id){if(pin)data.pin=pin;}else{data.pin=pin||'0000';}
+    if(data.pin&&data.pin.length!==4){notif('PIN deve ter 4 dígitos!',true);return;}
+    fetch(id?'/api/utilizadores/'+id:'/api/utilizadores',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.ok){notif(id?'Atualizado!':'Criado!');fecharModal();carregar();}});
+}
+function editar(id){const u=dados.find(d=>d.id==id);if(u)abrirModal(u);}
+function toggleAtivo(id,ativo){const u=dados.find(d=>d.id==id);if(!u)return;u.ativo=ativo?0:1;fetch('/api/utilizadores/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(u)}).then(r=>r.json()).then(res=>{if(res.ok)carregar();});}
+function excluir(id,nome){if(!confirm(`Excluir utilizador "${nome}"?`))return;fetch('/api/utilizadores/'+id,{method:'DELETE'}).then(r=>r.json()).then(res=>{if(res.ok){notif('Excluído!');carregar();}});}
+carregar();
+</script>
+{% endblock %}

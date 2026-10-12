@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="error-page">
+    <div class="error-code">{{codigo}}</div>
+    <div class="error-msg">{{mensagem}}</div>
+    <p class="error-desc">
+        {% if codigo == 404 %}
+        O caminho que procuras não existe ou foi removido.
+        {% elif codigo == 403 %}
+        Não tens permissão para aceder a esta página.
+        {% elif codigo == 500 %}
+        Ocorreu um erro inesperado. Tenta novamente mais tarde.
+        {% endif %}
+    </p>
+    <a href="/" class="btn btn-primary">Voltar ao Início</a>
+</div>
+{% endblock %}

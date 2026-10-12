@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 mb-4">
+    <button class="btn btn-sm {{'btn-primary' if aba=='em_andamento' else 'btn-outline'}}" onclick="mudarAba('em_andamento')">Em Andamento</button>
+    <button class="btn btn-sm btn-outline" id="btnFinalizadas" onclick="mudarAba('finalizadas')">Finalizadas</button>
+</div>
+
+<div id="abaEmAndamento">
+    <div class="flex gap-2 items-center mb-4">
+        <h2 class="flex-1">Cargas em Andamento</h2>
+        <button class="btn btn-primary" onclick="abrirModalCarga()">+ Nova Carga</button>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr>
+        <th>Destino</th><th>Data Início</th><th>Valor Combinado</th><th>Adiantamentos</th><th>Líquido</th><th>Ações</th>
+    </tr></thead>
+        <tbody id="tbodyCargas"></tbody>
+    </table></div>
+</div>
+
+<div id="abaFinalizadas" style="display:none">
+    <div class="flex gap-2 items-center mb-4">
+        <h2 class="flex-1">Cargas Finalizadas</h2>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr>
+        <th>Destino</th><th>Início</th><th>Fim</th><th>Valor</th><th>Adiantamentos</th><th>Líquido</th><th>Pago</th><th>Ações</th>
+    </tr></thead>
+        <tbody id="tbodyFinalizadas"></tbody>
+    </table></div>
+</div>
+
+<!-- Modal Nova Carga -->
+<div class="modal" id="modalCarga">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+            <h3 style="margin-bottom:0">Nova Carga</h3>
+            <button class="btn btn-outline btn-sm" onclick="fecharModal('modalCarga')">✕</button>
+        </div>
+        <div class="form-group"><label>Destino *</label><input class="input" id="cDestino" placeholder="Ex: Maputo"></div>
+        <div class="form-group"><label>Data de Início *</label><input class="input" id="cDataInicio" type="date"></div>
+        <div class="form-group"><label>Valor Combinado (MT)</label><input class="input" id="cValor" type="number" step="0.01" min="0"></div>
+        <div class="form-group"><label>Observação</label><textarea class="input" id="cObs" rows="2"></textarea></div>
+        <div class="flex gap-2" style="justify-content:flex-end;margin-top:20px">
+            <button class="btn btn-outline" onclick="fecharModal('modalCarga')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarCarga()">Registar Carga</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adiantamento -->
+<div class="modal" id="modalAdiantamento">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+            <h3 style="margin-bottom:0">Registar Adiantamento</h3>
+            <button class="btn btn-outline btn-sm" onclick="fecharModal('modalAdiantamento')">✕</button>
+        </div>
+        <p id="adiantamentoInfo" class="mb-2"></p>
+        <div class="form-group"><label>Funcionário *</label><select class="input" id="aFunc"></select></div>
+        <div class="form-group"><label>Valor (MT) *</label><input class="input" id="aValor" type="number" step="0.01" min="0"></div>
+        <div class="form-group"><label>Data *</label><input class="input" id="aData" type="date"></div>
+        <div class="form-group"><label>Observação</label><textarea class="input" id="aObs" rows="2"></textarea></div>
+        <div class="flex gap-2" style="justify-content:flex-end;margin-top:20px">
+            <button class="btn btn-outline" onclick="fecharModal('modalAdiantamento')">Cancelar</button>
+            <button class="btn btn-warning" onclick="salvarAdiantamento()">Registar Adiantamento</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Acerto -->
+<div class="modal modal-lg" id="modalAcerto">
+    <div class="modal-content" id="acertoBody"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let cargas = [];
+let abaAtual = 'em_andamento';
+
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function mudarAba(aba) {
+    abaAtual = aba;
+    ['em_andamento','finalizadas'].forEach(a => {
+        document.getElementById('aba'+a.charAt(0).toUpperCase()+a.slice(1)).style.display = a===aba ? '' : 'none';
+    });
+    document.querySelectorAll('.flex.gap-2.mb-4 > .btn').forEach(b => b.className = 'btn btn-sm btn-outline');
+    document.getElementById('btn'+aba.charAt(0).toUpperCase()+aba.slice(1)).className = 'btn btn-sm btn-primary';
+    carregar();
+}
+
+function carregar() {
+    const url = abaAtual === 'finalizadas' ? '/api/cargas?status=finalizada' : '/api/cargas';
+    fetch(url).then(r=>r.json()).then(dados => {
+        cargas = dados;
+        const tbody = document.getElementById(abaAtual === 'finalizadas' ? 'tbodyFinalizadas' : 'tbodyCargas');
+        tbody.innerHTML = '';
+        dados.forEach(c => {
+            fetch(`/api/cargas/${c.id}/acerto`).then(r=>r.json()).then(acerto => {
+                const podeAdiantar = c.status !== 'finalizada';
+                const pago = c.pago == 1;
+                tbody.innerHTML += `<tr>
+                    <td><strong>${c.destino}</strong></td>
+                    <td>${c.data_inicio}</td>
+                    ${c.status === 'finalizada' ? `<td>${c.data_fim||'-'}</td>` : ''}
+                    <td>${moeda(acerto.valor_combinado)}</td>
+                    <td>${moeda(acerto.total_adiantamentos)}</td>
+                    <td><strong>${moeda(acerto.valor_liquido)}</strong></td>
+                    <td>${pago ? '<span class="tag tag-sucesso">Pago</span>' : '<span class="tag tag-erro">Não Pago</span>'}</td>
+                    <td>
+                        ${podeAdiantar ? `<button class="btn btn-warning btn-sm" onclick="abrirAdiantamento(${c.id},'${c.destino}')">Adiantar</button>` : ''}
+                        <button class="btn btn-outline btn-sm" onclick="verAcerto(${c.id})">Acerto</button>
+                        ${podeAdiantar ? `<button class="btn btn-success btn-sm" onclick="finalizar(${c.id})">Finalizar</button>` : ''}
+                        ${!podeAdiantar && !pago ? `<button class="btn btn-primary btn-sm" onclick="pagarCarga(${c.id})">💳 Pagar ${moeda(acerto.valor_liquido)}</button>` : ''}
+                        <button class="btn btn-outline btn-sm" onclick="excluirCarga(${c.id},'${c.destino}')">🗑️</button>
+                    </td>
+                </tr>`;
+            });
+        });
+    });
+}
+
+function abrirModalCarga() {
+    document.getElementById('cDestino').value = '';
+    document.getElementById('cDataInicio').value = new Date().toISOString().slice(0,10);
+    document.getElementById('cValor').value = '';
+    document.getElementById('cObs').value = '';
+    document.getElementById('modalCarga').classList.add('open');
+}
+
+function salvarCarga() {
+    const destino = document.getElementById('cDestino').value.trim();
+    const data = document.getElementById('cDataInicio').value;
+    const valor = document.getElementById('cValor').value;
+    if (!destino || !data) return notif('Preencha destino e data', true);
+    fetch('/api/cargas', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({destino, data_inicio: data, valor_combinado: parseFloat(valor)||0, observacao: document.getElementById('cObs').value})
+    }).then(r=>r.json()).then(res => {
+        if (res.id) { notif('Carga registada!'); fecharModal('modalCarga'); carregar(); }
+        else notif('Erro ao registar', true);
+    });
+}
+
+function finalizar(id) {
+    const hoje = new Date().toISOString().slice(0,10);
+    notifConfirm('Finalizar esta carga?').then(ok => {
+        if (!ok) return;
+        fetch(`/api/cargas/${id}/finalizar`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({data_fim: hoje})
+        }).then(r=>r.json()).then(res => {
+            if (res.ok) { notif('Carga finalizada!'); carregar(); }
+            else notif('Erro ao finalizar', true);
+        });
+    });
+}
+
+function excluirCarga(id, destino) {
+    notifConfirm(`Eliminar carga "${destino}"? Todos os adiantamentos serão removidos.`).then(ok => {
+        if (!ok) return;
+        fetch('/api/cargas/'+id, {method:'DELETE'}).then(r=>r.json()).then(res => {
+            if (res.ok) { notif('Eliminada!'); carregar(); }
+        });
+    });
+}
+
+let adiantamentoCargaId = null;
+
+function abrirAdiantamento(cargaId, destino) {
+    adiantamentoCargaId = cargaId;
+    document.getElementById('adiantamentoInfo').innerHTML = `<strong>${destino}</strong>`;
+    fetch('/api/funcionarios?ativo=1').then(r=>r.json()).then(funcs => {
+        const sel = document.getElementById('aFunc');
+        sel.innerHTML = '<option value="">Selecionar...</option>';
+        funcs.forEach(f => { sel.innerHTML += `<option value="${f.id}">${f.nome}</option>`; });
+    });
+    document.getElementById('aValor').value = '';
+    document.getElementById('aData').value = new Date().toISOString().slice(0,10);
+    document.getElementById('aObs').value = '';
+    document.getElementById('modalAdiantamento').classList.add('open');
+}
+
+function salvarAdiantamento() {
+    const funcId = document.getElementById('aFunc').value;
+    const valor = document.getElementById('aValor').value;
+    const data = document.getElementById('aData').value;
+    if (!funcId || !valor || !data) return notif('Preencha funcionário, valor e data', true);
+    fetch('/api/adiantamentos', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({carga_id: adiantamentoCargaId, funcionario_id: parseInt(funcId), valor: parseFloat(valor), data, observacao: document.getElementById('aObs').value})
+    }).then(r=>r.json()).then(res => {
+        if (res.id) { notif('Adiantamento registado!'); fecharModal('modalAdiantamento'); carregar(); }
+        else notif('Erro ao registar', true);
+    });
+}
+
+function pagarCarga(id) {
+    notifConfirm('Confirmar pagamento do valor líquido? Esta ação irá registar uma saída no financeiro.').then(ok => {
+        if (!ok) return;
+        const hoje = new Date().toISOString().slice(0,10);
+        fetch(`/api/cargas/${id}/pagar`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({data_pagamento: hoje})
+        }).then(r=>r.json()).then(res => {
+            if (res.ok) { notif('Carga paga! Movimento registado no financeiro.'); carregar(); }
+            else notif(res.erro||'Erro ao pagar', true);
+        });
+    });
+}
+
+function verAcerto(cargaId) {
+    fetch(`/api/cargas/${cargaId}/acerto`).then(r=>r.json()).then(acerto => {
+        const c = acerto.carga;
+        const pago = c.pago == 1;
+        let html = `
+            <div class="grid grid-3 mb-4">
+                <div><strong>Destino</strong><br>${c.destino}</div>
+                <div><strong>Data</strong><br>${c.data_inicio} ${c.data_fim ? 'a '+c.data_fim : ''}</div>
+                <div><strong>Status</strong><br>${c.status === 'finalizada' ? '✅ Finalizada' : '🔄 Em andamento'} ${pago ? '| 💰 Paga' : ''}</div>
+            </div>
+            <table class="tabela mb-4">
+                <thead><tr><th>Funcionário</th><th>Data</th><th>Valor</th><th>Obs</th></tr></thead>
+                <tbody>
+                    ${acerto.adiantamentos.length === 0 ? '<tr><td colspan="4" class="text-center">Nenhum adiantamento</td></tr>' : ''}
+                    ${acerto.adiantamentos.map(a => `<tr><td>${a.funcionario_nome}</td><td>${a.data}</td><td>${moeda(a.valor)}</td><td>${a.observacao||'-'}</td></tr>`).join('')}
+                </tbody>
+            </table>
+            <div class="flex justify-end">
+                <table style="min-width:300px">
+                    <tr><td>Valor Combinado</td><td class="text-right">${moeda(acerto.valor_combinado)}</td></tr>
+                    <tr><td>Total Adiantamentos</td><td class="text-right">- ${moeda(acerto.total_adiantamentos)}</td></tr>
+                    <tr style="font-weight:bold;font-size:1.2em"><td>Valor Líquido</td><td class="text-right">${moeda(acerto.valor_liquido)}</td></tr>
+                </table>
+            </div>
+            <div class="mt-4 text-right">
+                ${c.status === 'finalizada' && !pago ? `<button class="btn btn-primary" onclick="pagarCarga(${c.id});document.getElementById('modalAcerto').classList.remove('open')">💳 Pagar ${moeda(acerto.valor_liquido)}</button>` : ''}
+                ${pago ? `<p class="tag tag-sucesso" style="display:inline-block">✅ Paga em ${c.data_pagamento||'-'}</p>` : ''}
+            </div>`;
+        document.getElementById('acertoBody').innerHTML = html;
+        document.getElementById('modalAcerto').classList.add('open');
+    });
+}
+
+carregar();
+</script>
+{% endblock %}

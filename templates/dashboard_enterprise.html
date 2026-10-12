@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-hero card card-accent mb-4">
+    <div class="page-hero-inner">
+        <div>
+            <p class="eyebrow">Painel Executivo</p>
+            <h1>Dashboard Empresarial</h1>
+            <p class="hero-subtitle">Visão consolidada dos indicadores financeiros, fiscais e comerciais do grupo.</p>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-4 mb-4 kpi-grid" id="kpiGrid">
+    <div class="kpi-card kpi-revenue">
+        <div class="kpi-icon">📉</div>
+        <div>
+            <div class="kpi-title">Contas a Pagar</div>
+            <div class="kpi-value" id="kpiContasPagar">—</div>
+            <div class="kpi-meta"><span id="kpiVencidas">0</span> vencidas</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-target">
+        <div class="kpi-icon">📈</div>
+        <div>
+            <div class="kpi-title">Contas a Receber</div>
+            <div class="kpi-value" id="kpiContasReceber">—</div>
+            <div class="kpi-meta">Saldo a receber</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--info)">
+        <div class="kpi-icon">🏦</div>
+        <div>
+            <div class="kpi-title">Saldo Bancário</div>
+            <div class="kpi-value" id="kpiSaldoBancos">—</div>
+            <div class="kpi-meta">Total em contas</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--info)">
+        <div class="kpi-icon">💶</div>
+        <div>
+            <div class="kpi-title">Fluxo do Mês</div>
+            <div class="kpi-value" id="kpiFluxoMes">—</div>
+            <div class="kpi-meta">Entradas - Saídas</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-4 mb-4 kpi-grid" id="kpiGridVendas">
+    <div class="kpi-card" style="border-left-color:var(--success)">
+        <div class="kpi-icon">💰</div>
+        <div>
+            <div class="kpi-title">Vendas do Mês</div>
+            <div class="kpi-value" id="kpiVendasMes">—</div>
+            <div class="kpi-meta"><span id="kpiTotalVendasMes">0</span> vendas realizadas</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--warning)">
+        <div class="kpi-icon">🧾</div>
+        <div>
+            <div class="kpi-title">Ticket Médio</div>
+            <div class="kpi-value" id="kpiTicketMedio">—</div>
+            <div class="kpi-meta">Valor médio por venda</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--primary)">
+        <div class="kpi-icon">📦</div>
+        <div>
+            <div class="kpi-title">Total de Produtos</div>
+            <div class="kpi-value" id="kpiTotalProdutos">—</div>
+            <div class="kpi-meta">Produtos cadastrados</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--danger)">
+        <div class="kpi-icon">⚠️</div>
+        <div>
+            <div class="kpi-title">Stock Baixo</div>
+            <div class="kpi-value" id="kpiStockBaixo">—</div>
+            <div class="kpi-meta">Produtos abaixo do mínimo</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-3 mb-4">
+    <div class="card">
+        <div class="card-header"><h3>📊 Receita vs Despesa (6 meses)</h3></div>
+        <div class="card-body chart-container"><canvas id="chartReceitaDespesa" height="200"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h3>📈 Vendas Mensais (6 meses)</h3></div>
+        <div class="card-body chart-container"><canvas id="chartVendasMensais" height="200"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h3>🏆 Top Clientes Fidelidade</h3></div>
+        <div class="card-body chart-container"><canvas id="chartTopClientes" height="200"></canvas></div>
+    </div>
+</div>
+
+<div class="grid grid-2 mb-4">
+    <div class="card">
+        <div class="card-header"><h3>⚠️ Produtos com Stock Crítico</h3></div>
+        <div class="card-body">
+            <div class="tabela-wrap">
+                <table class="tabela" id="tabelaStock">
+                    <thead><tr><th>Produto</th><th>Categoria</th><th>Qtd.</th><th>Mínimo</th><th>Preço Venda</th></tr></thead>
+                    <tbody id="tbodyStock"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h3>🏪 Comparativo entre Filiais</h3></div>
+        <div class="card-body">
+            <div class="tabela-wrap">
+                <table class="tabela" id="tabelaComparativo"><thead><tr><th>Filial</th><th>Movimentos</th><th>Entradas (mês)</th><th>Saídas (mês)</th><th>Saldo (mês)</th></tr></thead>
+                    <tbody id="tbodyComparativo"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/charts.js"></script>
+<script>
+function carregar() {
+    fetch('/api/enterprise/dashboard')
+    .then(r=>r.json())
+    .then(dados => {
+        const k = dados.kpis;
+        document.getElementById('kpiContasPagar').textContent = formatCurrency(k.contas_pagar);
+        document.getElementById('kpiContasReceber').textContent = formatCurrency(k.contas_receber);
+        document.getElementById('kpiSaldoBancos').textContent = formatCurrency(k.saldo_bancos);
+        document.getElementById('kpiVencidas').textContent = k.contas_vencidas;
+        const fluxo = k.fluxo_mes;
+        const elFluxo = document.getElementById('kpiFluxoMes');
+        elFluxo.textContent = formatCurrency(Math.abs(fluxo));
+        elFluxo.style.color = fluxo >= 0 ? 'var(--success)' : 'var(--danger)';
+
+        // KPIs Vendas
+        document.getElementById('kpiVendasMes').textContent = formatCurrency(k.vendas_mes);
+        document.getElementById('kpiTicketMedio').textContent = formatCurrency(k.ticket_medio);
+        document.getElementById('kpiTotalProdutos').textContent = k.total_produtos;
+        document.getElementById('kpiStockBaixo').textContent = k.produtos_stock_baixo;
+        document.getElementById('kpiTotalVendasMes').textContent = k.total_vendas_mes;
+
+        // Chart Receita vs Despesa
+        const rd = dados.receita_despesa;
+        if (rd.length) {
+            ChartEngine.lineChart('chartReceitaDespesa', [
+                {label:'Receita', pontos: rd.map(r=>parseFloat(r.entradas||0)), cor:'#22c55e'},
+                {label:'Despesa', pontos: rd.map(r=>parseFloat(r.saidas||0)), cor:'#ef4444'}
+            ], {labels: rd.map(r=>r.mes.slice(5)), unidade:' MT', area:true});
+        }
+
+        // Chart Vendas Mensais
+        const vm = dados.vendas_mensais;
+        if (vm.length) {
+            ChartEngine.barChart('chartVendasMensais', vm.map((v,i)=>({
+                label: v.mes.slice(5),
+                valor: parseFloat(v.total||0),
+                cor: ChartEngine.paleta[i]
+            })), {unidade:' MT'});
+        }
+
+        // Chart Top Clientes
+        const tc = dados.top_clientes;
+        if (tc.length) {
+            ChartEngine.barChart('chartTopClientes', tc.map((c,i)=>({
+                label: c.nome,
+                valor: parseFloat(c.pontos||0),
+                cor: ChartEngine.paleta[i]
+            })), {unidade:' pts'});
+        }
+
+        // Tabela stock crítico
+        const sc = dados.stock_critico;
+        const tbodyStock = document.getElementById('tbodyStock');
+        tbodyStock.innerHTML = '';
+        if (sc.length) {
+            sc.forEach(p => {
+                tbodyStock.innerHTML += `<tr>
+                    <td><strong>${p.nome}</strong></td>
+                    <td>${p.categoria||'-'}</td>
+                    <td class="${parseFloat(p.quantidade)<=0?'saldo-dev':''}">${p.quantidade}</td>
+                    <td>${p.quantidade_minima}</td>
+                    <td>${moeda(p.preco_venda)}</td>
+                </tr>`;
+            });
+        } else {
+            tbodyStock.innerHTML = '<tr><td colspan="5" class="text-center">Nenhum produto com stock crítico</td></tr>';
+        }
+
+        // Tabela comparativo filiais
+        const cf = dados.comparativo_filiais;
+        const tbody = document.getElementById('tbodyComparativo');
+        tbody.innerHTML = '';
+        if (cf.length) {
+            cf.forEach(f => {
+                const saldo = (parseFloat(f.entradas_mes)||0) - (parseFloat(f.saidas_mes)||0);
+                tbody.innerHTML += `<tr>
+                    <td><strong>${f.nome}</strong></td>
+                    <td>${f.total_movimentos}</td>
+                    <td>${moeda(f.entradas_mes)}</td>
+                    <td>${moeda(f.saidas_mes)}</td>
+                    <td class="${saldo<0?'saldo-dev':''}">${moeda(saldo)}</td>
+                </tr>`;
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Nenhuma filial cadastrada</td></tr>';
+        }
+    });
+}
+
+function formatCurrency(v) {
+    const num = Number(v)||0;
+    const partes = num.toFixed(2).split('.');
+    partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return partes.join(',') + ' MT';
+}
+
+carregar();
+</script>
+{% endblock %}

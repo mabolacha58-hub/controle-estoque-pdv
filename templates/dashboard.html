@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-hero card card-accent mb-4">
+    <div class="page-hero-inner">
+        <div>
+            <p class="eyebrow">Painel Executivo</p>
+            <h1>Dashboard</h1>
+            <p class="hero-subtitle">Visão de alto nível dos indicadores de estoque, vendas e movimentações para apoiar decisões rápidas.</p>
+        </div>
+        <div class="hero-value">
+            <span class="hero-value-title">Valor total em estoque</span>
+            <div class="hero-value-number">{{moeda(valor_total)}}</div>
+            <div class="hero-metrics">
+                <span>{{total_prod}} produtos</span>
+                <span>{{total_cat}} categorias</span>
+                <span>{{total_mov}} movimentações</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dash-actions">
+    <a href="/pdv" class="btn btn-success btn-lg">🛒 Nova Venda</a>
+    <a href="/produtos" class="btn btn-primary">📦 Produtos</a>
+    <a href="/relatorios" class="btn btn-outline">📊 Relatórios</a>
+</div>
+
+<div class="grid grid-4 mb-4 kpi-grid">
+    <div class="kpi-card kpi-revenue">
+        <div class="kpi-icon">💵</div>
+        <div>
+            <div class="kpi-title">Receita 30 dias</div>
+            <div class="kpi-value" id="kpiReceitaTotal">Carregando...</div>
+            <div class="kpi-meta"><span id="kpiReceitaTrend" class="kpi-trend">—</span> vs semana anterior</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-daily">
+        <div class="kpi-icon">🛒</div>
+        <div>
+            <div class="kpi-title">Vendas hoje</div>
+            <div class="kpi-value">{{moeda(vendas_hoje)}}</div>
+            <div class="kpi-meta">Meta diária: {{moeda(meta_diaria)}}</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-input">
+        <div class="kpi-icon">📈</div>
+        <div>
+            <div class="kpi-title">Média / 7 dias</div>
+            <div class="kpi-value">{{moeda(media_7dias)}}</div>
+            <div class="kpi-meta"><span id="kpiVendasHojeProg" class="kpi-trend">—</span> da média hoje</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-alert">
+        <div class="kpi-icon">⚠️</div>
+        <div>
+            <div class="kpi-title">Produtos Críticos</div>
+            <div class="kpi-value">{{ baixo|length }}</div>
+            <div class="kpi-meta">Abaixo do estoque mínimo</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-2 mb-4">
+    <div class="chart-card chart-hero grid-full">
+        <div class="chart-header">
+            <span class="chart-header-icon">📈</span>
+            <div>
+                <div class="chart-title">Fluxo de Movimentações (30 dias)</div>
+                <div class="chart-subtitle">Entrada vs Saída em valor</div>
+            </div>
+        </div>
+        <div class="chart-body">
+            <canvas id="chartMovimentos" class="chart-canvas chart-hero-canvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-3 mb-4">
+    <div class="chart-card">
+        <div class="chart-header">
+            <span class="chart-header-icon">🍩</span>
+            <div>
+                <div class="chart-title">Valor em Estoque por Categoria</div>
+                <div class="chart-subtitle">Partilha do valor total dos produtos</div>
+            </div>
+        </div>
+        <div class="chart-body">
+            <canvas id="chartPartilhaCat" class="chart-canvas"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <span class="chart-header-icon">📊</span>
+            <div>
+                <div class="chart-title">Movimentações por Dia</div>
+                <div class="chart-subtitle">Entradas e saídas (últimos 10 dias)</div>
+            </div>
+        </div>
+        <div class="chart-body">
+            <canvas id="chartBarrasDias" class="chart-canvas"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <span class="chart-header-icon">🏆</span>
+            <div>
+                <div class="chart-title">Top 5 Produtos</div>
+                <div class="chart-subtitle">Maior valor em estoque</div>
+            </div>
+        </div>
+        <div class="chart-body">
+            <canvas id="chartTopProdutos" class="chart-canvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-2 mb-4">
+    <div class="card">
+        <div class="card-header">
+            <h3>🧾 Movimentações Recentes</h3>
+        </div>
+        <div class="tabela-wrap">
+            <table class="tabela">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Produto</th>
+                        <th>Tipo</th>
+                        <th class="text-right">Qtd.</th>
+                        <th class="text-right">V. Unit.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movs %}
+                    <tr>
+                        <td>{{ m[1][:10] }}</td>
+                        <td><strong>{{ m[2] }}</strong></td>
+                        <td>
+                            {% if m[3] == 'entrada' %}
+                                <span class="badge badge-success">Entrada</span>
+                            {% else %}
+                                <span class="badge badge-danger">Saída</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">{{ m[4] }}</td>
+                        <td class="text-right">{{ moeda(m[5]) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>⚠️ Alerta de Stock Baixo</h3>
+        </div>
+        <div class="card-body">
+            {% if baixo %}
+            <div class="alert-stock-body">
+                {% for p in baixo %}
+                <span class="alert-stock-tag">
+                    {{p.nome}} <strong>{{p.quantidade}}</strong>/{{p.quantidade_minima}}
+                </span>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">Nenhum produto abaixo do stock mínimo. Estoque saudável. ✅</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/charts.js"></script>
+<script>
+const formatCurrency = value => value.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MT';
+const formatTrend = value => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+const comparePeriod = (current, previous) => previous === 0 ? (current === 0 ? 0 : 100) : ((current - previous) / Math.abs(previous)) * 100;
+
+async function loadRevenueKpi() {
+    try {
+        const dados = await fetch('/api/relatorio/lucro?dias=30').then(r => r.json());
+        const receita = dados.reduce((sum, item) => sum + (parseFloat(item.receita) || 0), 0);
+        const prevWeek = dados.slice(-14, -7).reduce((sum, item) => sum + (parseFloat(item.receita) || 0), 0);
+        const curWeek = dados.slice(-7).reduce((sum, item) => sum + (parseFloat(item.receita) || 0), 0);
+        const trend = comparePeriod(curWeek, prevWeek);
+        document.getElementById('kpiReceitaTotal').textContent = formatCurrency(receita);
+        const kpiReceitaTrend = document.getElementById('kpiReceitaTrend');
+        kpiReceitaTrend.textContent = formatTrend(trend);
+        kpiReceitaTrend.classList.toggle('trend-negative', trend < 0);
+    } catch (err) {
+        document.getElementById('kpiReceitaTotal').textContent = 'Erro';
+    }
+}
+
+(function() {
+    const hoje = {{vendas_hoje}};
+    const media = {{media_7dias}};
+    const el = document.getElementById('kpiVendasHojeProg');
+    if (media > 0) {
+        const pct = Math.min((hoje / media) * 100, 999);
+        el.textContent = pct.toFixed(0) + '%';
+        el.classList.toggle('trend-negative', hoje < media);
+    } else {
+        el.textContent = '—';
+    }
+})();
+
+loadRevenueKpi();
+loadChartsData();
+
+function loadChartsData() {
+    try {
+        const dias = {{dias|tojson}};
+
+        // Line chart - fluxo movimentações (30 dias)
+        ChartEngine.lineChart('chartMovimentos', [
+            { label: 'Entrada', pontos: dias.map(d => d.entrada), cor: '#10b981' },
+            { label: 'Saída', pontos: dias.map(d => d.saida), cor: '#f97316' }
+        ], {
+            titulo: '',
+            labels: dias.map(d => d.data),
+            unidade: ' MT',
+            area: true
+        });
+
+        // Bar chart - últimos 10 dias
+        const ultimos = dias.slice(-10);
+        ChartEngine.barChart('chartBarrasDias', ultimos.map((d, i) => ({
+            label: d.data,
+            valor: d.saida,
+            cor: '#' + ['10b981','14b8a6','0ea5e9','22c55e','34d399','06b6d4','38bdf8','2dd4bf','14b8a6','10b981'][i]
+        })), {
+            titulo: '',
+            unidade: ' MT'
+        });
+
+        // Donut - partilha por categoria
+        const prods = {{prods|tojson}};
+        const agg = {};
+        prods.forEach(p => {
+            const cat = p.categoria || 'Sem categoria';
+            const valor = (parseFloat(p.quantidade)||0) * (parseFloat(p.preco_venda)||0);
+            agg[cat] = (agg[cat]||0) + valor;
+        });
+        const categorias = Object.keys(agg)
+            .map(k => ({ label: k, valor: agg[k] }))
+            .sort((a,b) => b.valor - a.valor)
+            .slice(0, 6);
+        if (categorias.length) {
+            ChartEngine.pieChart('chartPartilhaCat', categorias, {
+                titulo: '',
+                donut: true,
+                centro: formatCurrency({{valor_total}})
+            });
+        }
+
+        // Top produtos (horiz bar)
+        const topProdutos = {{dash|tojson}};
+        ChartEngine.hbarChart('chartTopProdutos', topProdutos.map((p, i) => ({
+            label: p[0],
+            valor: parseFloat(p[1]) || 0,
+            cor: ['#10b981', '#14b8a6', '#0ea5e9', '#22c55e', '#34d399'][i]
+        })), {
+            titulo: '',
+            unidade: ' MT'
+        });
+    } catch (err) {
+        console.error('Erro ao carregar gráficos:', err);
+    }
+}
+</script>
+{% endblock %}

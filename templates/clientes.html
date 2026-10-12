@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg flex-1" id="busca" placeholder="Buscar cliente...">
+    <button class="btn btn-primary" onclick="abrirModal()">+ Novo Cliente</button>
+</div>
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>ID</th><th>Nome</th><th>NIF</th><th>Telefone</th><th>Email</th><th>Saldo</th><th>Limite</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Novo Cliente</h3>
+        <input type="hidden" id="editId">
+        <div class="form-row">
+            <div class="form-group"><label>Nome</label><input class="input" id="fNome"></div>
+            <div class="form-group"><label>NIF</label><input class="input" id="fNif"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Telefone</label><input class="input" id="fTel"></div>
+            <div class="form-group"><label>Email</label><input class="input" id="fEmail"></div>
+        </div>
+        <div class="form-group"><label>Morada</label><input class="input" id="fMorada"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Limite de Crédito (MT)</label><input class="input" id="fLimite" type="number" step="0.01"></div>
+            <div class="form-group"><label>Saldo Atual</label><input class="input input-readonly" id="fSaldo" readonly></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvar()">💾 Salvar</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dados = [];
+function carregar() { fetch('/api/clientes').then(r=>r.json()).then(d=>{dados=d;render('');}); }
+function render(b) {
+    const tbody = document.getElementById('tbody');
+    const busca = (b||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    tbody.innerHTML = '';
+    dados.filter(c => !busca || c.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(busca))
+    .forEach(c => {
+        tbody.innerHTML += `<tr>
+            <td>${c.id}</td><td>${c.nome}</td><td>${c.nif||'-'}</td><td>${c.telefone||'-'}</td>
+            <td>${c.email||'-'}</td>
+            <td class="${parseFloat(c.saldo||0)>0?'saldo-dev':''}">${moeda(c.saldo)}</td>
+            <td>${moeda(c.limite_credito)}</td>
+            <td>
+                <span class="acao-excluir" onclick="editar(${c.id})" title="Editar">✏️</span>
+                <span class="acao-excluir" onclick="excluir(${c.id},'${c.nome}')" title="Excluir">🗑️</span>
+            </td>
+        </tr>`;
+    });
+}
+function abrirModal(d) {
+    document.getElementById('modal').classList.add('open');
+    document.getElementById('modalTitle').textContent = d ? 'Editar Cliente' : 'Novo Cliente';
+    document.getElementById('editId').value = d ? d.id : '';
+    document.getElementById('fNome').value = d ? d.nome : '';
+    document.getElementById('fNif').value = d ? (d.nif||'') : '';
+    document.getElementById('fTel').value = d ? (d.telefone||'') : '';
+    document.getElementById('fEmail').value = d ? (d.email||'') : '';
+    document.getElementById('fMorada').value = d ? (d.morada||'') : '';
+    document.getElementById('fLimite').value = d ? (d.limite_credito||0) : 0;
+    document.getElementById('fSaldo').value = d ? moeda(d.saldo||0) : '0,00 MT';
+}
+function fecharModal() { document.getElementById('modal').classList.remove('open'); }
+function salvar() {
+    const id = document.getElementById('editId').value;
+    const data = {nome:document.getElementById('fNome').value.trim(),nif:document.getElementById('fNif').value.trim(),
+        telefone:document.getElementById('fTel').value.trim(),email:document.getElementById('fEmail').value.trim(),
+        morada:document.getElementById('fMorada').value.trim(),limite_credito:parseFloat(document.getElementById('fLimite').value)||0};
+    if (!data.nome) { notif('Nome obrigatório!',true); return; }
+    const url = id ? '/api/clientes/'+id : '/api/clientes';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => { if(res.ok) { notif(id?'Cliente atualizado!':'Cliente criado!'); fecharModal(); carregar(); } });
+}
+function editar(id) {
+    const c = dados.find(d=>d.id==id);
+    if (c) abrirModal(c);
+}
+function excluir(id,nome) {
+    if (!confirm(`Excluir cliente "${nome}"?`)) return;
+    fetch('/api/clientes/'+id,{method:'DELETE'}).then(r=>r.json()).then(res => {
+        if(res.ok) { notif('Cliente excluído!'); carregar(); }
+    });
+}
+document.getElementById('busca').addEventListener('input',e=>render(e.target.value));
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+carregar();
+</script>
+{% endblock %}

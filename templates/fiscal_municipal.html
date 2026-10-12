@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-hero card card-accent mb-4">
+    <div class="page-hero-inner">
+        <div>
+            <p class="eyebrow">Gestão Municipal</p>
+            <h1>Fiscal Municipal</h1>
+            <p class="hero-subtitle">Registo e controlo de impostos, taxas e licenças municipais.</p>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-4 mb-4 kpi-grid" id="kpiGrid">
+    <div class="kpi-card" style="border-left-color:var(--warning)">
+        <div class="kpi-icon">📋</div>
+        <div>
+            <div class="kpi-title">Pendentes</div>
+            <div class="kpi-value" id="kpiPendentes">—</div>
+            <div class="kpi-meta">Taxas por pagar</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--danger)">
+        <div class="kpi-icon">⚠️</div>
+        <div>
+            <div class="kpi-title">Vencidos</div>
+            <div class="kpi-value" id="kpiVencidos">—</div>
+            <div class="kpi-meta">Pagamentos em atraso</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--success)">
+        <div class="kpi-icon">✅</div>
+        <div>
+            <div class="kpi-title">Pago este Mês</div>
+            <div class="kpi-value" id="kpiPagoMes">—</div>
+            <div class="kpi-meta">Total pago no mês</div>
+        </div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--info)">
+        <div class="kpi-icon">💰</div>
+        <div>
+            <div class="kpi-title">Saldo Pendente</div>
+            <div class="kpi-value" id="kpiSaldoPendente">—</div>
+            <div class="kpi-meta">Valor total em aberto</div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h3>📄 Taxas e Impostos Municipais</h3>
+        <div class="flex gap-2">
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNovo()">+ Nova Taxa</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="flex gap-2 mb-2">
+            <select class="input" id="filtroStatus" onchange="carregar()" style="max-width:200px">
+                <option value="">Todas</option>
+                <option value="pendente">Pendentes</option>
+                <option value="pago">Pagas</option>
+                <option value="parcial">Parcial</option>
+            </select>
+        </div>
+        <div class="tabela-wrap">
+            <table class="tabela" id="tabelaFiscal">
+                <thead><tr>
+                    <th>Tipo</th><th>Descrição</th><th>Valor</th>
+                    <th>Valor Pago</th><th>Vencimento</th><th>Pagamento</th><th>Status</th><th>Ações</th>
+                </tr></thead>
+                <tbody id="tbodyFiscal"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo -->
+<div class="modal" id="modalNovo">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+            <h3 style="margin-bottom:0">Nova Taxa Municipal</h3>
+            <button class="btn btn-outline btn-sm" onclick="fecharModal('modalNovo')">✕</button>
+        </div>
+        <div class="form-group">
+            <label>Tipo de Taxa</label>
+            <select class="input" id="fTipo">
+                <option value="">Selecionar tipo...</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Descrição</label>
+            <input class="input" id="fDescricao" placeholder="Ex: Alvará 2026">
+        </div>
+        <div class="form-group">
+            <label>Valor (MT)</label>
+            <input class="input" id="fValor" type="number" step="0.01" min="0" placeholder="0,00">
+        </div>
+        <div class="form-group">
+            <label>Data de Vencimento</label>
+            <input class="input" id="fVencimento" type="date">
+        </div>
+        <div class="form-group">
+            <label>Observação</label>
+            <textarea class="input" id="fObservacao" rows="2" placeholder="Observações..."></textarea>
+        </div>
+        <div class="flex gap-2" style="justify-content:flex-end;margin-top:20px">
+            <button class="btn btn-outline" onclick="fecharModal('modalNovo')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvar()">Registar Taxa</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Pagar -->
+<div class="modal" id="modalPagar">
+    <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+            <h3 style="margin-bottom:0">Pagar Taxa Municipal</h3>
+            <button class="btn btn-outline btn-sm" onclick="fecharModal('modalPagar')">✕</button>
+        </div>
+        <p id="pagarInfo" class="mb-2"></p>
+        <div class="form-group">
+            <label>Valor a Pagar (MT)</label>
+            <input class="input" id="pValor" type="number" step="0.01" min="0" placeholder="0,00">
+        </div>
+        <div class="form-group">
+            <label>Data de Pagamento</label>
+            <input class="input" id="pData" type="date">
+        </div>
+        <div class="form-group">
+            <label>Observação</label>
+            <textarea class="input" id="pObservacao" rows="2" placeholder="Observações..."></textarea>
+        </div>
+        <div class="flex gap-2" style="justify-content:flex-end;margin-top:20px">
+            <button class="btn btn-outline" onclick="fecharModal('modalPagar')">Cancelar</button>
+            <button class="btn btn-success" onclick="pagar()">Confirmar Pagamento</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let pagarId = null;
+
+function abrirModal(id) { document.getElementById(id).classList.add('open'); }
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function carregar() {
+    const status = document.getElementById('filtroStatus').value;
+    const url = status ? `/api/fiscal-municipal?status=${status}` : '/api/fiscal-municipal';
+    fetch(url).then(r=>r.json()).then(dados => {
+        // KPIs
+        document.getElementById('kpiPendentes').textContent = dados.resumo.pendentes;
+        document.getElementById('kpiVencidos').textContent = dados.resumo.vencidos;
+        document.getElementById('kpiSaldoPendente').textContent = moeda(dados.resumo.saldo_pendente);
+        document.getElementById('kpiPagoMes').textContent = moeda(dados.resumo.pago_mes);
+
+        // Tabela
+        const tbody = document.getElementById('tbodyFiscal');
+        tbody.innerHTML = '';
+        dados.lista.forEach(item => {
+            const restante = parseFloat(item.valor) - parseFloat(item.valor_pago||0);
+            const clsStatus = item.status === 'pago' ? 'tag tag-sucesso' :
+                              item.status === 'parcial' ? 'tag tag-aviso' : 'tag tag-erro';
+            const labelStatus = item.status === 'pago' ? 'Pago' :
+                                item.status === 'parcial' ? 'Parcial' : 'Pendente';
+            const podePagar = item.status !== 'pago';
+            tbody.innerHTML += `<tr>
+                <td><strong>${item.tipo}</strong></td>
+                <td>${item.descricao||'-'}</td>
+                <td>${moeda(item.valor)}</td>
+                <td>${moeda(item.valor_pago||0)}</td>
+                <td>${item.data_vencimento||'-'}</td>
+                <td>${item.data_pagamento||'-'}</td>
+                <td><span class="${clsStatus}">${labelStatus}</span></td>
+                <td>
+                    ${podePagar ? `<button class="btn btn-success btn-sm" onclick="abrirPagar(${item.id},'${item.tipo}',${item.valor},${item.valor_pago||0})">💳 Pagar</button>` : ''}
+                    <button class="btn btn-outline btn-sm" onclick="excluir(${item.id})">🗑️</button>
+                </td>
+            </tr>`;
+        });
+    });
+}
+
+function abrirModalNovo() {
+    fetch('/api/fiscal-municipal/tipos').then(r=>r.json()).then(tipos => {
+        const sel = document.getElementById('fTipo');
+        sel.innerHTML = '<option value="">Selecionar tipo...</option>';
+        tipos.forEach(t => {
+            sel.innerHTML += `<option value="${t.nome}">${t.nome}</option>`;
+        });
+    });
+    document.getElementById('fDescricao').value = '';
+    document.getElementById('fValor').value = '';
+    document.getElementById('fVencimento').value = '';
+    document.getElementById('fObservacao').value = '';
+    abrirModal('modalNovo');
+}
+
+function salvar() {
+    const tipo = document.getElementById('fTipo').value;
+    const descricao = document.getElementById('fDescricao').value;
+    const valor = document.getElementById('fValor').value;
+    const vencimento = document.getElementById('fVencimento').value;
+    const observacao = document.getElementById('fObservacao').value;
+    if (!tipo || !valor || !vencimento) return notif('Preencha tipo, valor e vencimento', true);
+    fetch('/api/fiscal-municipal', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({tipo, descricao, valor: parseFloat(valor), data_vencimento: vencimento, observacao})
+    }).then(r=>r.json()).then(res => {
+        if (res.id) { notif('Taxa registada!'); fecharModal('modalNovo'); carregar(); }
+        else notif('Erro ao registar', true);
+    });
+}
+
+function abrirPagar(id, tipo, valor, valorPago) {
+    pagarId = id;
+    const restante = valor - valorPago;
+    document.getElementById('pagarInfo').innerHTML = `<strong>${tipo}</strong> — Valor: ${moeda(valor)} | Restante: ${moeda(restante)}`;
+    document.getElementById('pValor').value = restante.toFixed(2);
+    document.getElementById('pData').value = new Date().toISOString().slice(0,10);
+    document.getElementById('pObservacao').value = '';
+    abrirModal('modalPagar');
+}
+
+function pagar() {
+    const valor = document.getElementById('pValor').value;
+    const data = document.getElementById('pData').value;
+    const observacao = document.getElementById('pObservacao').value;
+    if (!valor || !data) return notif('Preencha valor e data', true);
+    fetch(`/api/fiscal-municipal/${pagarId}/pagar`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({valor_pago: parseFloat(valor), data_pagamento: data, observacao})
+    }).then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Pagamento registado!'); fecharModal('modalPagar'); carregar(); }
+        else notif('Erro ao pagar', true);
+    });
+}
+
+function excluir(id) {
+    notifConfirm('Eliminar esta taxa municipal?').then(confirm => {
+        if (!confirm) return;
+        fetch(`/api/fiscal-municipal/${id}`, {method:'DELETE'})
+        .then(r=>r.json()).then(res => {
+            if (res.ok) { notif('Eliminada!'); carregar(); }
+            else notif('Erro ao eliminar', true);
+        });
+    });
+}
+
+carregar();
+</script>
+{% endblock %}

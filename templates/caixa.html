@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <h3 style="flex:1;margin:0">Gestão de Caixa</h3>
+    <div id="statusCaixa"></div>
+</div>
+
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>ID</th><th>Operador</th><th>Abertura</th><th>Fecho</th><th>Saldo Inicial</th><th>Saldo Final</th><th>Status</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<div class="modal" id="modalAbrir">
+    <div class="modal-content" style="max-width:360px">
+        <h3>Abrir Caixa</h3>
+        <div class="form-group"><label>Operador</label><select class="input w-full" id="fOperador"></select></div>
+        <div class="form-group"><label>Saldo Inicial (MT)</label><input class="input w-full" id="fSaldoInicial" type="number" step="0.01" value="0"></div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="abrirCaixa()">Abrir Caixa</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modalFechar">
+    <div class="modal-content" style="max-width:360px">
+        <h3>Fechar Caixa</h3>
+        <p id="fecharInfo" style="color:var(--texto2)"></p>
+        <div class="form-group"><label>Diferença / Ajuste (MT)</label><input class="input w-full" id="fDiferenca" type="number" step="0.01" value="0"></div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-danger" onclick="fecharCaixa()">Fechar Caixa</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dados = [];
+let utilizadores = [];
+
+function carregar() {
+    fetch('/api/caixa').then(r=>r.json()).then(d => { dados = d; render(); });
+    fetch('/api/utilizadores').then(r=>r.json()).then(d => { utilizadores = d; });
+    atualizarStatus();
+}
+
+function atualizarStatus() {
+    const el = document.getElementById('statusCaixa');
+    fetch('/api/caixa/status').then(r=>r.json()).then(s => {
+        if (s.aberto) {
+            el.innerHTML = `<span style="color:var(--success)">● Caixa Aberto</span>
+                <small style="color:var(--texto2);margin-left:8px">${s.operador} — desde ${s.abertura}</small>
+                <button class="btn btn-sm btn-danger" style="margin-left:12px" onclick="abrirModalFechar(${s.caixa_id})">Fechar Caixa</button>`;
+        } else {
+            el.innerHTML = `<span style="color:var(--aviso)">● Caixa Fechado</span>
+                <button class="btn btn-sm btn-success" style="margin-left:12px" onclick="abrirModalAbrir()">Abrir Caixa</button>`;
+        }
+    });
+}
+
+function render() {
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    dados.forEach(c => {
+        const aberto = c.status === 'aberto';
+        tbody.innerHTML += `<tr>
+            <td>${c.id}</td><td>${c.operador||'-'}</td><td>${c.abertura||'-'}</td>
+            <td>${c.fecho||'-'}</td>
+            <td>${moeda(c.saldo_inicial)}</td>
+            <td>${aberto ? '-' : moeda(c.saldo_final)}</td>
+            <td style="color:${aberto?'var(--success)':'var(--texto2)'}">${aberto?'Aberto':'Fechado'}</td>
+        </tr>`;
+    });
+}
+
+function abrirModalAbrir() {
+    const sel = document.getElementById('fOperador');
+    sel.innerHTML = '';
+    utilizadores.filter(u => u.ativo).forEach(u => {
+        sel.innerHTML += `<option value="${u.id}">${u.nome}</option>`;
+    });
+    document.getElementById('fSaldoInicial').value = 0;
+    document.getElementById('modalAbrir').classList.add('open');
+}
+
+function abrirModalFechar(caixaId) {
+    document.getElementById('fDiferenca').value = 0;
+    fetch('/api/caixa/status').then(r=>r.json()).then(s => {
+        document.getElementById('fecharInfo').textContent =
+            `Vendas de hoje: ${moeda(s.vendas_hoje)}. Total em caixa: ~${moeda(s.vendas_hoje)}`;
+    });
+    document.getElementById('modalFechar').classList.add('open');
+}
+
+function fecharModal() {
+    document.getElementById('modalAbrir').classList.remove('open');
+    document.getElementById('modalFechar').classList.remove('open');
+}
+
+function abrirCaixa() {
+    const uid = document.getElementById('fOperador').value;
+    if (!uid) { notif('Selecione um operador!', true); return; }
+    fetch('/api/caixa/abrir', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({utilizador_id:parseInt(uid), saldo_inicial:parseFloat(document.getElementById('fSaldoInicial').value)||0})})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Caixa aberto!'); som('sucesso'); fecharModal(); carregar(); }
+        else { notif(res.erro||'Erro ao abrir caixa', true); som('erro'); }
+    });
+}
+
+function fecharCaixa() {
+    fetch('/api/caixa/fechar', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({diferenca:parseFloat(document.getElementById('fDiferenca').value)||0})})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif(`Caixa fechado! Vendas: ${moeda(res.vendas_hoje)} | Saldo final: ${moeda(res.saldo_final)}`); som('sucesso'); fecharModal(); carregar(); }
+        else { notif(res.erro||'Erro ao fechar caixa', true); som('erro'); }
+    });
+}
+
+document.getElementById('modalAbrir').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+document.getElementById('modalFechar').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+carregar();
+</script>
+{% endblock %}

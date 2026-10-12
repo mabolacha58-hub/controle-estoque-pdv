@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <select class="input" id="filtroTipo"><option value="">Todos os tipos</option></select>
+    <button class="btn btn-primary" onclick="abrirModal()">+ Novo Documento</button>
+</div>
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>Nº Documento</th><th>Série</th><th>Tipo</th><th>Cliente</th><th>NIF</th><th>Total</th><th>IVA</th><th>Status</th><th>Data</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<div class="modal" id="modal"><div class="modal-content"><h3>Novo Documento Fiscal</h3>
+    <div class="form-group"><label>Tipo</label><select class="input w-full" id="fTipo"></select></div>
+    <div class="form-row">
+        <div class="form-group"><label>Cliente (opcional)</label><select class="input w-full" id="fCliente"></select></div>
+        <div class="form-group"><label>NIF</label><input class="input w-full" id="fNif" placeholder="NIF do cliente"></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>Total (MT)</label><input class="input w-full" id="fTotal" type="number" step="0.01"></div>
+        <div class="form-group"><label>IVA Total (MT)</label><input class="input w-full" id="fIva" type="number" step="0.01" value="0"></div>
+    </div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvar()">💾 Emitir</button><button class="btn btn-outline" onclick="fecharModal()">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalAnular"><div class="modal-content"><h3>Anular Documento</h3><input type="hidden" id="anularId">
+    <p class="mb-2">Tem certeza que deseja anular o documento <strong id="anularDoc">#</strong>?</p>
+    <div class="form-group"><label>Motivo</label><textarea class="input w-full" id="anularMotivo" rows="2"></textarea></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-danger" onclick="confirmarAnular()">Anular</button><button class="btn btn-outline" onclick="fecharModal('modalAnular')">Cancelar</button></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dados=[], tipos=[], clientes=[];
+function carregar() {
+    fetch('/api/fiscal/documentos').then(r=>r.json()).then(d=>{dados=d;render();});
+    fetch('/api/fiscal/tipos').then(r=>r.json()).then(d=>{tipos=d;
+        const selFiltro=document.getElementById('filtroTipo');
+        selFiltro.innerHTML='<option value="">Todos os tipos</option>';
+        d.forEach(t=>{selFiltro.innerHTML+=`<option value="${t.sigla}">${t.nome}</option>`;});
+        const selTipo=document.getElementById('fTipo');
+        selTipo.innerHTML='';
+        d.forEach(t=>{selTipo.innerHTML+=`<option value="${t.sigla}">${t.nome}</option>`;});
+    });
+    fetch('/api/clientes').then(r=>r.json()).then(d=>{clientes=d;
+        const sel=document.getElementById('fCliente');
+        sel.innerHTML='<option value="">Consumidor Final</option>';
+        d.forEach(c=>{sel.innerHTML+=`<option value="${c.id}" data-nif="${c.nif||''}">${c.nome}${c.nif?' ('+c.nif+')':''}</option>`;});
+    });
+}
+function render() {
+    const tipo = document.getElementById('filtroTipo').value;
+    const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
+    dados.filter(d=>!tipo||d.tipo===tipo).forEach(d => {
+        tbody.innerHTML += `<tr>
+            <td>${d.numero_documento}</td><td>${d.serie||'-'}</td><td>${d.tipo}</td><td>${d.cliente_nome||'-'}</td>
+            <td>${d.cliente_nif||'-'}</td><td>${moeda(d.total)}</td><td>${moeda(d.iva_total)}</td>
+            <td><span class="tag tag-${d.status=='anulado'?'danger':'success'}">${d.status}</span></td>
+            <td>${d.data_emissao}</td>
+            <td>${d.status!='anulado'?`<button class="btn btn-sm btn-danger" onclick="anular(${d.id},'${d.numero_documento}')">Anular</button>`:''}</td>
+        </tr>`;
+    });
+}
+function abrirModal() { document.getElementById('modal').classList.add('open'); }
+function fecharModal(id) { document.getElementById(id||'modal').classList.remove('open'); }
+function salvar() {
+    const selCliente = document.getElementById('fCliente');
+    const clienteOpt = selCliente.selectedOptions[0];
+    const clienteId = parseInt(selCliente.value)||null;
+    const clienteNome = clienteOpt ? clienteOpt.text.split(' (')[0] : 'Consumidor Final';
+    const nifInput = document.getElementById('fNif').value.trim();
+    const clienteNif = nifInput || (clienteOpt ? (clienteOpt.dataset.nif||'') : '');
+    const data = {tipo:document.getElementById('fTipo').value,cliente_id:clienteId,
+        cliente_nome:clienteNome,cliente_nif:clienteNif,
+        total:parseFloat(document.getElementById('fTotal').value)||0,
+        iva_total:parseFloat(document.getElementById('fIva').value)||0};
+    if (!data.tipo||!data.total) { notif('Preencha tipo e total!',true); return; }
+    fetch('/api/fiscal/documentos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.id||res.numero_documento){notif('Documento emitido!');fecharModal('modal');carregar();}});
+}
+function anular(id, doc) {
+    document.getElementById('anularId').value = id;
+    document.getElementById('anularDoc').textContent = '#' + doc;
+    document.getElementById('anularMotivo').value = '';
+    document.getElementById('modalAnular').classList.add('open');
+}
+function confirmarAnular() {
+    const id = document.getElementById('anularId').value;
+    const motivo = document.getElementById('anularMotivo').value.trim();
+    fetch('/api/fiscal/documentos/'+id+'/anular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({motivo})})
+    .then(r=>r.json()).then(res=>{if(res.ok){notif('Documento anulado!');fecharModal('modalAnular');carregar();}});
+}
+document.getElementById('filtroTipo').addEventListener('change',render);
+document.getElementById('fCliente').addEventListener('change',function(){
+    const opt = this.selectedOptions[0];
+    if (opt && opt.dataset.nif) { document.getElementById('fNif').value = opt.dataset.nif; }
+});
+document.querySelectorAll('.modal').forEach(m=>{m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});});
+carregar();
+</script>
+{% endblock %}

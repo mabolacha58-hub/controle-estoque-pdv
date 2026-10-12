@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg flex-1" id="busca" placeholder="Buscar filial...">
+    <button class="btn btn-primary" onclick="abrirModal()">+ Nova Filial</button>
+</div>
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>ID</th><th>Nome</th><th>Endereço</th><th>Telefone</th><th>Email</th><th>Ativo</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Nova Filial</h3>
+        <input type="hidden" id="editId">
+        <div class="form-group"><label>Nome *</label><input class="input w-full" id="fNome"></div>
+        <div class="form-group"><label>Endereço</label><input class="input w-full" id="fEndereco"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Telefone</label><input class="input w-full" id="fTel"></div>
+            <div class="form-group"><label>Email</label><input class="input w-full" id="fEmail"></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvar()">💾 Salvar</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dados = [];
+function carregar() { fetch('/api/filiais').then(r=>r.json()).then(d=>{dados=d;render('');}); }
+function render(b) {
+    const tbody = document.getElementById('tbody');
+    const busca = (b||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    tbody.innerHTML = '';
+    dados.filter(f => !busca || f.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(busca))
+    .forEach(f => {
+        tbody.innerHTML += `<tr>
+            <td>${f.id}</td><td>${f.nome}</td><td>${f.endereco||'-'}</td><td>${f.telefone||'-'}</td>
+            <td>${f.email||'-'}</td>
+            <td>${f.ativo ? '✅' : '❌'}</td>
+            <td>
+                <span class="acao-excluir" onclick="editar(${f.id})" title="Editar">✏️</span>
+                <span class="acao-excluir" onclick="excluir(${f.id},'${f.nome}')" title="Excluir">🗑️</span>
+            </td>
+        </tr>`;
+    });
+}
+function abrirModal(d) {
+    document.getElementById('modal').classList.add('open');
+    document.getElementById('modalTitle').textContent = d ? 'Editar Filial' : 'Nova Filial';
+    document.getElementById('editId').value = d ? d.id : '';
+    document.getElementById('fNome').value = d ? d.nome : '';
+    document.getElementById('fEndereco').value = d ? (d.endereco||'') : '';
+    document.getElementById('fTel').value = d ? (d.telefone||'') : '';
+    document.getElementById('fEmail').value = d ? (d.email||'') : '';
+}
+function fecharModal() { document.getElementById('modal').classList.remove('open'); }
+function salvar() {
+    const id = document.getElementById('editId').value;
+    const data = {nome:document.getElementById('fNome').value.trim(),endereco:document.getElementById('fEndereco').value.trim(),
+        telefone:document.getElementById('fTel').value.trim(),email:document.getElementById('fEmail').value.trim()};
+    if (!data.nome) { notif('Nome obrigatório!',true); return; }
+    const url = id ? '/api/filiais/'+id : '/api/filiais';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => { if(res.ok || res.id) { notif(id?'Filial atualizada!':'Filial criada!'); fecharModal(); carregar(); } });
+}
+function editar(id) {
+    const f = dados.find(d=>d.id==id);
+    if (f) abrirModal(f);
+}
+function excluir(id,nome) {
+    if (!confirm(`Excluir filial "${nome}"?`)) return;
+    fetch('/api/filiais/'+id,{method:'DELETE'}).then(r=>r.json()).then(res => {
+        if(res.ok) { notif('Filial excluída!'); carregar(); }
+    });
+}
+document.getElementById('busca').addEventListener('input',e=>render(e.target.value));
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+carregar();
+</script>
+{% endblock %}

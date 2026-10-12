@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg" id="busca" placeholder="Buscar movimentação..." style="flex:1">
+    <button class="btn btn-success" onclick="abrirModal('entrada')">+ Entrada</button>
+    <button class="btn btn-danger" onclick="abrirModal('saida')">- Saída</button>
+</div>
+
+<div class="mov-summary">
+    <div class="mov-summary-card">
+        <span>Total vendas</span>
+        <strong id="totalVendasHoje">0,00 MT</strong>
+    </div>
+</div>
+
+<div class="tabela-wrap">
+    <table class="tabela" id="tabela">
+        <thead><tr><th>ID</th><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Preço</th><th>Documento</th><th>Obs</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<div class="flex gap-2 items-center justify-center mt-4" id="paginacao">
+    <button class="btn btn-sm btn-outline" onclick="irPagina(paginaAtual-1)" id="btnPrev" disabled>← Anterior</button>
+    <span class="text-sm" id="infoPagina">Página 1 de 1</span>
+    <button class="btn btn-sm btn-outline" onclick="irPagina(paginaAtual+1)" id="btnNext">Seguinte →</button>
+</div>
+
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Nova Movimentação</h3>
+        <input type="hidden" id="movTipo">
+        <div class="form-group"><label>Produto</label><select class="input w-full" id="fProd"></select></div>
+        <div class="form-row">
+            <div class="form-group"><label>Quantidade</label><input class="input w-full" id="fQtd" type="number" step="0.01"></div>
+            <div class="form-group"><label>Preço Unitário</label><input class="input w-full" id="fPreco" type="number" step="0.01"></div>
+        </div>
+        <div class="form-group"><label>Documento</label><input class="input w-full" id="fDoc"></div>
+        <div class="form-group"><label>Observação</label><input class="input w-full" id="fObs"></div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvar()">💾 Salvar</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let LIMITE = 50;
+let paginaAtual = 1;
+let totalPaginas = 1;
+let buscaAtual = '';
+let produtos = [];
+
+function carregar() {
+    const params = new URLSearchParams({pagina: paginaAtual, limite: LIMITE});
+    if (buscaAtual) params.set('busca', buscaAtual);
+    fetch('/api/movimentacoes?' + params.toString()).then(r=>r.json()).then(data => {
+        if (data.dados) {
+            window.dados = data.dados;
+            totalPaginas = data.total_paginas;
+        } else {
+            window.dados = data;
+            totalPaginas = 1;
+        }
+        render();
+        atualizarPaginacao();
+        atualizarResumoDiario();
+    });
+    fetch('/api/produtos').then(r=>r.json()).then(data => {
+        produtos = data;
+    });
+}
+
+function irPagina(pag) {
+    if (pag < 1 || pag > totalPaginas) return;
+    paginaAtual = pag;
+    carregar();
+    const wrap = document.querySelector('.tabela-wrap');
+    if (wrap) wrap.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function atualizarPaginacao() {
+    document.getElementById('infoPagina').textContent = `Página ${paginaAtual} de ${totalPaginas}`;
+    document.getElementById('btnPrev').disabled = paginaAtual <= 1;
+    document.getElementById('btnNext').disabled = paginaAtual >= totalPaginas;
+}
+
+function render() {
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    window.dados.forEach(m => {
+        tbody.innerHTML += `<tr>
+            <td>${m.id}</td>
+            <td>${m.data}</td>
+            <td>${m.nome}</td>
+            <td><span class="tag tag-${m.tipo}">${m.tipo}</span></td>
+            <td>${m.qtd}</td>
+            <td>${moeda(m.preco)}</td>
+            <td>${m.doc}</td>
+            <td>${m.obs}</td>
+            <td><span class="acao-excluir" onclick="excluirMov(${m.id})" title="Excluir">🗑️</span></td>
+        </tr>`;
+    });
+}
+
+function buscarMov() {
+    buscaAtual = document.getElementById('busca').value.trim();
+    paginaAtual = 1;
+    carregar();
+}
+
+function abrirModal(tipo) {
+    document.getElementById('modal').classList.add('open');
+    document.getElementById('modalTitle').textContent = tipo === 'entrada' ? 'Nova Entrada' : 'Nova Saída';
+    document.getElementById('movTipo').value = tipo;
+    const sel = document.getElementById('fProd');
+    sel.innerHTML = '';
+    produtos.forEach(p => {
+        sel.innerHTML += `<option value="${p.id}">${p.nome} (Est: ${p.quantidade})</option>`;
+    });
+    document.getElementById('fQtd').value = '1';
+    document.getElementById('fPreco').value = '';
+    document.getElementById('fDoc').value = '';
+    document.getElementById('fObs').value = '';
+}
+
+function fecharModal() {
+    document.getElementById('modal').classList.remove('open');
+}
+
+function salvar() {
+    const data = {
+        produto_id: parseInt(document.getElementById('fProd').value),
+        tipo: document.getElementById('movTipo').value,
+        quantidade: parseFloat(document.getElementById('fQtd').value) || 0,
+        preco: parseFloat(document.getElementById('fPreco').value) || 0,
+        documento: document.getElementById('fDoc').value.trim(),
+        observacao: document.getElementById('fObs').value.trim()
+    };
+    if (!data.produto_id || data.quantidade <= 0) {
+        notif('Selecione produto e quantidade válida!', true); return;
+    }
+    fetch('/api/movimentacoes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Movimentação registrada!'); fecharModal(); paginaAtual = 1; carregar(); }
+        else { notif('Erro ao salvar', true); }
+    });
+}
+
+function hojeLocal() {
+    const d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function atualizarResumoDiario() {
+    const total = (window.dados || []).reduce((sum, m) => {
+        if (m.tipo !== 'saida') return sum;
+        const qtd = parseFloat(m.qtd) || 0;
+        const preco = parseFloat(m.preco) || 0;
+        return sum + qtd * preco;
+    }, 0);
+    document.getElementById('totalVendasHoje').textContent = moeda(total);
+    const footer = document.getElementById('totalVendasHojeFooter');
+    if (footer) footer.textContent = moeda(total);
+}
+
+function excluirMov(id) {
+    const item = (window.dados || []).find(m => m.id === id);
+    const nome = item ? item.nome : '?';
+    if (!confirm(`Tem certeza que deseja excluir a movimentação #${id} (${nome})?\nO estoque será revertido.`)) return;
+    fetch('/api/movimentacoes/' + id, {method:'DELETE'})
+    .then(r=>{ if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(res => {
+        if (res.ok) { notif('Movimentação excluída! Estoque revertido.'); carregar(); }
+        else { notif('Erro ao excluir: ' + (res.erro||'desconhecido'), true); }
+    })
+    .catch(e => notif('Erro ao excluir movimentação', true));
+}
+
+document.getElementById('busca').addEventListener('input', e => {
+    clearTimeout(window._buscaTimer);
+    window._buscaTimer = setTimeout(buscarMov, 400);
+});
+document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) fecharModal();
+});
+carregar();
+</script>
+{% endblock %}

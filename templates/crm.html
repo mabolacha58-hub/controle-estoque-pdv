@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg flex-1" id="busca" placeholder="Buscar cliente...">
+    <button class="btn btn-primary" onclick="abrirModal('comunicacao')">+ Comunicar</button>
+</div>
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>Cliente</th><th>NIF</th><th>Pontos</th><th>Nível</th><th>Total Compras</th><th>Cashback Disp.</th><th>Total Cashback</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<div class="modal" id="modalCashback"><div class="modal-content"><h3>Histórico Cashback</h3>
+    <h4 id="cbClienteNome" class="mb-2"></h4>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Data</th><th>Tipo</th><th>Valor</th></tr></thead><tbody id="tbodyCashback"></tbody></table></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="abrirModal('addCashback')">+ Adicionar Cashback</button><button class="btn btn-outline" onclick="fecharModal('modalCashback')">Fechar</button></div>
+</div></div>
+<div class="modal" id="modalAddCashback"><div class="modal-content"><h3>Adicionar Cashback</h3><input type="hidden" id="addCbClienteId">
+    <div class="form-group"><label>Tipo</label><select class="input w-full" id="addCbTipo"><option value="acumulo">Acúmulo</option><option value="resgate">Resgate</option></select></div>
+    <div class="form-group"><label>Valor (MT)</label><input class="input w-full" id="addCbValor" type="number" step="0.01"></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarCashback()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalAddCashback')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalComunicacao"><div class="modal-content"><h3>Registrar Comunicação</h3>
+    <div class="form-group"><label>Cliente</label><select class="input w-full" id="fCliente"></select></div>
+    <div class="form-group"><label>Tipo</label><select class="input w-full" id="fTipo"><option value="email">Email</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option></select></div>
+    <div class="form-group"><label>Mensagem</label><textarea class="input w-full" id="fMsg" rows="3"></textarea></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarComunicacao()">💾 Enviar</button><button class="btn btn-outline" onclick="fecharModal('modalComunicacao')">Cancelar</button></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let clientes = [];
+let selectedClienteId = null;
+
+function carregar() {
+    fetch('/api/fidelizacao/clientes').then(r=>r.json()).then(d=>{clientes=d;render('');});
+    fetch('/api/clientes').then(r=>r.json()).then(d=>{
+        const sel=document.getElementById('fCliente');sel.innerHTML='<option value="">Selecione</option>';
+        d.forEach(c=>{sel.innerHTML+=`<option value="${c.id}">${c.nome}</option>`;});
+    });
+}
+function render(b) {
+    const tbody = document.getElementById('tbody');
+    const busca = (b||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    tbody.innerHTML = '';
+    clientes.filter(c => !busca || (c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(busca))
+    .forEach(c => {
+        tbody.innerHTML += `<tr>
+            <td>${c.nome}</td><td>${c.nif||'-'}</td><td>${c.pontos||0}</td>
+            <td><span class="tag tag-info">${c.nivel||'normal'}</span></td>
+            <td>${moeda(c.total_compras)}</td>
+            <td>${moeda(c.cashback_disponivel||c.saldo||0)}</td>
+            <td>${moeda(c.total_cashback||0)}</td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick="verCashback(${c.cliente_id},'${c.nome}')">💰 Cashback</button>
+            </td>
+        </tr>`;
+    });
+}
+function abrirModal(id) { document.getElementById('modal'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('open'); }
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+function verCashback(clienteId, nome) {
+    selectedClienteId = clienteId;
+    document.getElementById('cbClienteNome').textContent = nome;
+    document.getElementById('addCbClienteId').value = clienteId;
+    fetch('/api/cashback/'+clienteId).then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyCashback');t.innerHTML='';
+        d.forEach(cb=>{t.innerHTML+=`<tr><td>${cb.data}</td><td><span class="tag tag-${cb.tipo=='acumulo'?'success':'aviso'}">${cb.tipo}</span></td><td>${moeda(cb.valor)}</td></tr>`;});
+    });
+    document.getElementById('modalCashback').classList.add('open');
+}
+function salvarCashback() {
+    const clienteId = parseInt(document.getElementById('addCbClienteId').value);
+    const data = {valor:parseFloat(document.getElementById('addCbValor').value)||0,tipo:document.getElementById('addCbTipo').value};
+    if (!data.valor) { notif('Informe o valor!',true); return; }
+    fetch('/api/cashback/'+clienteId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.ok){notif('Cashback registado!');fecharModal('modalAddCashback');verCashback(clienteId,document.getElementById('cbClienteNome').textContent);carregar();}});
+}
+function salvarComunicacao() {
+    const data = {cliente_id:parseInt(document.getElementById('fCliente').value)||null,
+        tipo:document.getElementById('fTipo').value,destinatario:'',mensagem:document.getElementById('fMsg').value.trim()};
+    if (!data.cliente_id||!data.mensagem) { notif('Selecione cliente e escreva mensagem!',true); return; }
+    fetch('/api/comunicacoes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.id){notif('Comunicação registada!');fecharModal('modalComunicacao');}});
+}
+document.getElementById('busca').addEventListener('input',e=>render(e.target.value));
+document.querySelectorAll('.modal').forEach(m=>{m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});});
+carregar();
+</script>
+{% endblock %}

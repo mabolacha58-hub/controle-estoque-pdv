@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="rel-grid">
+    <div class="rel-toolbar">
+        <span class="fw-600 fs-13">📄 Exportar PDF</span>
+        <select id="pdfTipo" class="select-filter">
+            <option value="vendas">Vendas</option>
+            <option value="stock">Stock</option>
+            <option value="produtos">Produtos</option>
+            <option value="movimentacoes">Movimentações</option>
+            <option value="lucro">Lucro</option>
+            <option value="clientes">Clientes</option>
+            <option value="categoria">Categorias</option>
+        </select>
+        <select id="pdfDias" class="select-filter">
+            <option value="7">7 dias</option>
+            <option value="15">15 dias</option>
+            <option value="30" selected>30 dias</option>
+            <option value="90">90 dias</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="exportarPDF()">⬇ PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportarCSV()">📄 CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="exportarXLSX()">📊 Excel</button>
+    </div>
+    <div class="rel-card">
+        <h3>📦 Stock por Categoria</h3>
+        <div class="sub">Distribuição do inventário</div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartCategoria"></div><canvas id="chartCategoria"></canvas></div>
+    </div>
+    <div class="rel-card">
+        <h3>🔴 Top Produtos em Stock</h3>
+        <div class="sub">Produtos com maior quantidade</div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartTopStock"></div><canvas id="chartTopStock"></canvas></div>
+    </div>
+    <div class="rel-card full">
+        <h3>💰 Evolução de Lucro</h3>
+        <div class="sub">Receita vs Custo vs Lucro</div>
+        <div class="filtros">
+            <span class="label-periodo">Período:</span>
+            <button class="btn-filtro ativo" data-dias-lucro="7">7 dias</button>
+            <button class="btn-filtro" data-dias-lucro="15">15 dias</button>
+            <button class="btn-filtro" data-dias-lucro="30">30 dias</button>
+            <button class="btn-filtro" data-dias-lucro="60">60 dias</button>
+        </div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartLucro"></div><canvas id="chartLucro"></canvas></div>
+    </div>
+    <div class="rel-card full">
+        <h3>📈 Movimentações</h3>
+        <div class="sub">Entradas vs Saídas por dia</div>
+        <div class="filtros">
+            <span class="label-periodo">Período:</span>
+            <button class="btn-filtro ativo" data-dias="7">7 dias</button>
+            <button class="btn-filtro" data-dias="15">15 dias</button>
+            <button class="btn-filtro" data-dias="30">30 dias</button>
+            <button class="btn-filtro" data-dias="60">60 dias</button>
+            <button class="btn-filtro" data-dias="90">90 dias</button>
+        </div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartMov"></div><canvas id="chartMov"></canvas></div>
+    </div>
+    <div class="rel-card">
+        <h3>💰 Valor em Estoque</h3>
+        <div class="sub">Investimento total por categoria</div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartValor"></div><canvas id="chartValor"></canvas></div>
+    </div>
+    <div class="rel-card">
+        <h3>⚠️ Produtos com Stock Baixo</h3>
+        <div class="sub">Abaixo da quantidade mínima</div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartBaixo"></div><canvas id="chartBaixo"></canvas></div>
+    </div>
+    <div class="rel-card full">
+        <h3>🏆 Top Vendas (por valor)</h3>
+        <div class="sub">Produtos mais vendidos em valor total</div>
+        <div class="chart-wrap"><div class="chart-skeleton" id="skel-chartVendas"></div><canvas id="chartVendas"></canvas></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/charts.js"></script>
+<script>
+const CE = ChartEngine;
+
+async function carregarTodos() {
+    const [prods, cats, movs] = await Promise.all([
+        fetch('/api/produtos').then(r=>r.json()),
+        fetch('/api/categorias').then(r=>r.json()),
+        fetch('/api/movimentacoes').then(r=>r.json())
+    ]);
+    return { prods, cats, movs };
+}
+
+function renderizar(dados) {
+    const { prods, cats, movs } = dados;
+    if (!prods || !cats || !movs) return;
+
+    function carregado(id) { const s=document.getElementById('skel-'+id); if(s) s.classList.add('loaded'); }
+    function tryChart(id, fn) {
+        try { const r=fn(); if(r&&r.then) r.then(()=>carregado(id)); else carregado(id); } catch(e) {
+            console.error('Chart '+id+':', e);
+            const el = document.getElementById(id);
+            if (el) el.parentElement.innerHTML += '<p class="chart-msg-warning">Erro ao renderizar</p>';
+            carregado(id);
+        }
+    }
+
+    tryChart('chartLucro', async () => {
+        const lucro = await fetch('/api/relatorio/lucro?dias=30').then(r=>r.json());
+        if (!lucro.length) return;
+        const lbl = lucro.map(d=>d.data.slice(5));
+        const rec = lucro.map(d=>d.receita), cst = lucro.map(d=>d.custo), luc = lucro.map(d=>d.lucro);
+        const mx = Math.max(...rec,...cst)*1.2||1;
+        CE.lineChart('chartLucro', [
+            {label:'Receita',pontos:rec,cor:'#22c55e'},
+            {label:'Custo',pontos:cst,cor:'#ef4444'},
+            {label:'Lucro',pontos:luc,cor:'#0ea5e9'}
+        ], {labels:lbl, max:mx, unidade:' MT', area:true});
+        window._lucroData = lucro;
+    });
+
+    tryChart('chartCategoria', () => {
+        const catStock = {};
+        prods.forEach(p => { const n = p.categoria||'Sem categoria'; catStock[n] = (catStock[n]||0)+(parseFloat(p.quantidade)||0); });
+        const data = Object.entries(catStock).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([l,v],i)=>({label:l,valor:v,cor:ChartEngine.paleta[i]}));
+        if (data.length) CE.pieChart('chartCategoria', data, {donut:true, centro: prods.length+' itens'});
+        else document.getElementById('chartCategoria').parentElement.innerHTML += '<p class="chart-msg-empty">Nenhum produto</p>';
+    });
+
+    tryChart('chartTopStock', () => {
+        const data = prods.map(p=>({label:p.nome,valor:parseFloat(p.quantidade)||0})).sort((a,b)=>b.valor-a.valor).slice(0,12);
+        if (data.length) CE.hbarChart('chartTopStock', data, {unidade:' un', max: data[0].valor*1.2});
+        else document.getElementById('chartTopStock').parentElement.innerHTML += '<p class="chart-msg-empty">Nenhum produto</p>';
+    });
+
+    tryChart('chartMov', () => {
+        function renderMov(dias) {
+            const hoje = new Date(), mapa = {};
+            for (let i = dias-1; i >= 0; i--) {
+                const d = new Date(hoje); d.setDate(d.getDate()-i);
+                mapa[d.toISOString().substring(0,10)] = {entrada:0,saida:0};
+            }
+            movs.forEach(m => {
+                const md = m.data.substring(0,10);
+                if (mapa[md]) {
+                    const q = parseFloat(m.qtd)||0;
+                    if (m.tipo==='entrada') mapa[md].entrada += q; else mapa[md].saida += q;
+                }
+            });
+            const lbl = Object.keys(mapa);
+            const ent = lbl.map(l=>mapa[l].entrada), sai = lbl.map(l=>mapa[l].saida);
+            const mx = Math.max(...ent,...sai)*1.2||1;
+            CE.lineChart('chartMov', [
+                {label:'Entradas',pontos:ent,cor:'#22c55e'},
+                {label:'Saídas',pontos:sai,cor:'#ef4444'}
+            ], {labels: lbl.map(l=>l.substring(5)), max:mx, unidade:' un', area:true});
+        }
+        renderMov(30);
+    });
+
+    tryChart('chartValor', () => {
+        const catV = {};
+        prods.forEach(p => { const n = p.categoria||'Sem categoria'; catV[n] = (catV[n]||0)+(parseFloat(p.quantidade)||0)*(parseFloat(p.preco_custo)||0); });
+        const data = Object.entries(catV).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([l,v],i)=>({label:l,valor:Math.round(v*100)/100,cor:ChartEngine.paleta[i]}));
+        if (data.length) CE.barChart('chartValor', data, {unidade:' MT', padL:75});
+        else document.getElementById('chartValor').parentElement.innerHTML += '<p class="chart-msg-empty">Nenhum produto</p>';
+    });
+
+    tryChart('chartBaixo', () => {
+        const data = prods.filter(p=>p.quantidade_minima>0&&p.quantidade<=p.quantidade_minima)
+            .sort((a,b)=>(a.quantidade/a.quantidade_minima)-(b.quantidade/b.quantidade_minima)).slice(0,15)
+            .map(p=>({label:p.nome,valor:parseFloat(p.quantidade)||0,
+                cor:(parseFloat(p.quantidade)||0)<=(parseFloat(p.quantidade_minima)||1)/2?'#ef4444':'#eab308'}));
+        if (data.length) CE.hbarChart('chartBaixo', data, {unidade:' un', padL:130});
+        else document.getElementById('chartBaixo').parentElement.innerHTML +=
+            '<p class="chart-msg-ok">✅ Stock normal</p>';
+    });
+
+    tryChart('chartVendas', () => {
+        const vMap = {};
+        movs.filter(m=>m.tipo==='saida'&&m.doc!=='Ajuste').forEach(m => {
+            vMap[m.nome] = (vMap[m.nome]||0)+(parseFloat(m.qtd)||0)*(parseFloat(m.preco)||0);
+        });
+        const data = Object.entries(vMap).sort((a,b)=>b[1]-a[1]).slice(0,12)
+            .map(([l,v],i)=>({label:l,valor:Math.round(v*100)/100,cor:ChartEngine.paleta[i]}));
+        if (data.length) CE.hbarChart('chartVendas', data, {unidade:' MT', padL:130});
+        else document.getElementById('chartVendas').parentElement.innerHTML += '<p class="chart-msg-empty">Nenhuma venda</p>';
+    });
+}
+
+// Profit chart period filter
+document.querySelectorAll('[data-dias-lucro]').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        document.querySelectorAll('[data-dias-lucro]').forEach(b => b.classList.remove('ativo'));
+        this.classList.add('ativo');
+        const dias = parseInt(this.dataset.diasLucro);
+        const lucro = await fetch(`/api/relatorio/lucro?dias=${dias}`).then(r=>r.json());
+        if (!lucro.length) return;
+        const lbl = lucro.map(d=>d.data.slice(5));
+        const rec = lucro.map(d=>d.receita), cst = lucro.map(d=>d.custo), luc = lucro.map(d=>d.lucro);
+        const mx = Math.max(...rec,...cst)*1.2||1;
+        CE.lineChart('chartLucro', [
+            {label:'Receita',pontos:rec,cor:'#22c55e'},
+            {label:'Custo',pontos:cst,cor:'#ef4444'},
+            {label:'Lucro',pontos:luc,cor:'#0ea5e9'}
+        ], {labels:lbl, max:mx, unidade:' MT', area:true});
+    });
+});
+
+// Period filter for mov chart
+document.querySelectorAll('.btn-filtro:not([data-dias-lucro])').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('ativo'));
+        this.classList.add('ativo');
+        const dias = parseInt(this.dataset.dias);
+        const dados = await carregarTodos();
+        const hoje = new Date();
+        const corte = new Date(hoje);
+        corte.setDate(corte.getDate() - dias);
+        dados.movs = dados.movs.filter(m => new Date(m.data.substring(0,10)) >= corte);
+        renderizar(dados);
+    });
+});
+
+carregarTodos().then(renderizar);
+
+function exportarPDF() {
+    const tipo = document.getElementById('pdfTipo').value;
+    const dias = document.getElementById('pdfDias').value;
+    window.open(`/api/relatorio/pdf?tipo=${tipo}&dias=${dias}`, '_blank');
+}
+function exportarCSV() {
+    const tipo = document.getElementById('pdfTipo').value;
+    const dias = document.getElementById('pdfDias').value;
+    window.open(`/api/relatorio/csv?tipo=${tipo}&dias=${dias}`, '_blank');
+}
+function exportarXLSX() {
+    const tipo = document.getElementById('pdfTipo').value;
+    const dias = document.getElementById('pdfDias').value;
+    window.open(`/api/relatorio/xlsx?tipo=${tipo}&dias=${dias}`, '_blank');
+}
+
+// Resize handler
+let resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => carregarTodos().then(renderizar), 300);
+});
+</script>
+{% endblock %}

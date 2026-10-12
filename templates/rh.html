@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 mb-4 flex-wrap">
+    <button class="btn btn-sm {{'btn-primary' if aba=='funcionarios' else 'btn-outline'}}" onclick="mudarAba('funcionarios')">Funcionários</button>
+    <button class="btn btn-sm btn-outline" id="btnPresencas" onclick="mudarAba('presencas')">Presenças</button>
+    <button class="btn btn-sm btn-outline" id="btnComissoes" onclick="mudarAba('comissoes')">Comissões</button>
+    <button class="btn btn-sm btn-outline" id="btnFolha" onclick="mudarAba('folha')">Folha de Salário</button>
+    <button class="btn btn-sm btn-outline" id="btnAluguer" onclick="mudarAba('aluguer')">Aluguéis</button>
+</div>
+<div id="abaFuncionarios">
+    <div class="flex gap-2 items-center mb-4">
+        <input class="input input-lg flex-1" id="busca" placeholder="Buscar funcionário...">
+        <button class="btn btn-primary" onclick="abrirModal('funcionario')">+ Novo Funcionário</button>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr><th>ID</th><th>Nome</th><th>Cargo</th><th>Salário Base</th><th>Ativo</th><th>Ações</th></tr></thead>
+        <tbody id="tbodyFunc"></tbody>
+    </table></div>
+</div>
+<div id="abaPresencas" style="display:none">
+    <div class="flex gap-2 items-center mb-4">
+        <select class="input" id="filtroFuncPresenca"></select>
+        <button class="btn btn-primary" onclick="registrarEntrada()">Registrar Entrada</button>
+        <button class="btn btn-warning" onclick="registrarSaida()">Registrar Saída</button>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Funcionário</th><th>Data</th><th>Entrada</th><th>Saída</th><th>Horas</th></tr></thead>
+        <tbody id="tbodyPres"></tbody>
+    </table></div>
+</div>
+<div id="abaComissoes" style="display:none">
+    <div class="flex gap-2 items-center mb-4">
+        <select class="input" id="filtroFuncComissao"></select>
+        <button class="btn btn-primary" onclick="abrirModal('comissao')">+ Nova Comissão</button>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Funcionário</th><th>Venda</th><th>Valor Venda</th><th>%</th><th>Valor Comissão</th><th>Pago</th><th>Data</th><th></th></tr></thead>
+        <tbody id="tbodyCom"></tbody>
+    </table></div>
+</div>
+<div id="abaFolha" style="display:none">
+    <div class="flex gap-2 items-center mb-4 flex-wrap">
+        <select class="input" id="filMes">
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+        <input class="input" id="filAno" type="number" value="{{ano_atual}}" style="width:80px">
+        <select class="input" id="filStatusFolha"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
+        <button class="btn btn-primary" onclick="processarFolha()">⚙️ Processar Folha</button>
+        <button class="btn btn-success" onclick="pagarFolhaSelecionadas()">💰 Pagar Selecionadas</button>
+        <button class="btn btn-warning" onclick="abrirModalAdiantamentoSalarial()">💸 Adiantamento</button>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr>
+        <th><input type="checkbox" id="checkAllFolha" onchange="toggleAllFolha(this)"></th>
+        <th>Funcionário</th><th>Cargo</th><th>Salário Base</th><th>Descontos</th>
+        <th>Líquido</th><th>Status</th><th>Mês</th><th>Processamento</th><th>Ações</th>
+    </tr></thead>
+        <tbody id="tbodyFolha"></tbody>
+    </table></div>
+</div>
+<div id="abaAluguer" style="display:none">
+    <div class="flex gap-2 items-center mb-4 flex-wrap">
+        <select class="input" id="alMes">
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+        <input class="input" id="alAno" type="number" value="{{ano_atual}}" style="width:80px">
+        <select class="input" id="alStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
+        <button class="btn btn-primary" onclick="abrirModalAluguer()">+ Novo Aluguer</button>
+    </div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr>
+        <th>Descrição</th><th>Proprietário</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Status</th><th>Mês</th><th>Observação</th><th>Ações</th>
+    </tr></thead>
+        <tbody id="tbodyAluguer"></tbody>
+    </table></div>
+</div>
+<div class="modal" id="modalAluguer"><div class="modal-content"><h3>Novo Pagamento de Aluguer</h3>
+    <div class="form-row">
+        <div class="form-group"><label>Descrição *</label><input class="input w-full" id="alDescricao" placeholder="Ex: Armazém Central"></div>
+        <div class="form-group"><label>Proprietário</label><input class="input w-full" id="alProprietario"></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>Valor (MT) *</label><input class="input w-full" id="alValor" type="number" step="0.01"></div>
+        <div class="form-group"><label>Data Vencimento</label><input class="input w-full" id="alVencimento" type="date"></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>Mês *</label><select class="input w-full" id="alMesModal"></select></div>
+        <div class="form-group"><label>Ano *</label><input class="input w-full" id="alAnoModal" type="number" value="{{ano_atual}}"></div>
+    </div>
+    <div class="form-group"><label>Observação</label><textarea class="input w-full" id="alObs" rows="2"></textarea></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarAluguer()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalAluguer')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalFuncionario"><div class="modal-content"><h3 id="modalTitleFunc">Novo Funcionário</h3><input type="hidden" id="editFuncId">
+    <div class="form-row"><div class="form-group"><label>Nome *</label><input class="input w-full" id="fNome"></div><div class="form-group"><label>Cargo</label><input class="input w-full" id="fCargo"></div></div>
+    <div class="form-group"><label>Salário Base (MT)</label><input class="input w-full" id="fSalario" type="number" step="0.01"></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarFuncionario()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalFuncionario')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalComissao"><div class="modal-content"><h3>Nova Comissão</h3>
+    <div class="form-group"><label>Funcionário</label><select class="input w-full" id="cFunc"></select></div>
+    <div class="form-group"><label>Valor da Venda (MT)</label><input class="input w-full" id="cValor" type="number" step="0.01"></div>
+    <div class="form-group"><label>Percentagem (%)</label><input class="input w-full" id="cPerc" type="number" step="0.1"></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarComissao()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalComissao')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalAdiantamentoSalarial"><div class="modal-content"><h3>Registar Adiantamento Salarial</h3>
+    <p class="text-sm mb-2">Este valor será descontado automaticamente na próxima folha de salário.</p>
+    <div class="form-group"><label>Funcionário *</label><select class="input w-full" id="asFunc"></select></div>
+    <div class="form-group"><label>Valor (MT) *</label><input class="input w-full" id="asValor" type="text" inputmode="decimal" placeholder="0,00"></div>
+    <div class="form-group"><label>Data *</label><input class="input w-full" id="asData" type="date"></div>
+    <div class="form-group"><label>Observação</label><textarea class="input w-full" id="asObs" rows="2" placeholder="Motivo do adiantamento"></textarea></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-warning" onclick="salvarAdiantamentoSalarial()">💸 Registar Adiantamento</button><button class="btn btn-outline" onclick="fecharModal('modalAdiantamentoSalarial')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalEditarFolha"><div class="modal-content"><h3>Editar Folha</h3><input type="hidden" id="editFolhaId">
+    <div class="form-group"><label>Outros Descontos (MT)</label><input class="input w-full" id="efOutrosDesc" type="number" step="0.01"></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarEdicaoFolha()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalEditarFolha')">Cancelar</button></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let funcs = [];
+let abaAtual = 'funcionarios';
+let folhas = [];
+
+function mudarAba(aba) {
+    abaAtual = aba;
+    ['funcionarios','presencas','comissoes','folha','aluguer'].forEach(a => {
+        document.getElementById('aba'+a.charAt(0).toUpperCase()+a.slice(1)).style.display = a===aba ? '' : 'none';
+    });
+    document.querySelectorAll('.flex.gap-2.mb-4.flex-wrap > .btn, .flex.gap-2.mb-4 > .btn').forEach(b => b.className = 'btn btn-sm btn-outline');
+    const btn = document.getElementById('btn'+aba.charAt(0).toUpperCase()+aba.slice(1));
+    if (btn) btn.className = 'btn btn-sm btn-primary';
+    if (aba === 'presencas') carregarPresencas();
+    if (aba === 'comissoes') carregarComissoes();
+    if (aba === 'folha') carregarFolhas();
+    if (aba === 'aluguer') carregarAlugueres();
+}
+
+function carregar() {
+    fetch('/api/funcionarios?ativo=1').then(r=>r.json()).then(d=>{funcs=d;renderFunc('');
+        ['filtroFuncPresenca','filtroFuncComissao','cFunc'].forEach(id=>{
+            const sel=document.getElementById(id);if(!sel)return;
+            sel.innerHTML='<option value="">Todos</option>';
+            d.forEach(f=>{sel.innerHTML+=`<option value="${f.id}">${f.nome}</option>`;});
+        });
+    });
+}
+
+function renderFunc(b) {
+    const tbody=document.getElementById('tbodyFunc');
+    const busca=(b||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    tbody.innerHTML='';
+    funcs.filter(f=>!busca||f.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(busca))
+    .forEach(f=>{tbody.innerHTML+=`<tr><td>${f.id}</td><td>${f.nome}</td><td>${f.cargo||'-'}</td><td>${moeda(f.salario_base)}</td><td>${f.ativo?'✅':'❌'}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="editarFunc(${f.id})" title="Editar">✏️</button> <button class="btn btn-sm btn-danger" onclick="excluirFunc(${f.id},'${f.nome}')" title="Excluir">🗑️</button></td></tr>`;});
+}
+
+function abrirModal(id){document.getElementById('modal'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('open');}
+function fecharModal(id){document.getElementById(id).classList.remove('open');}
+
+function editarFunc(id){
+    const f=funcs.find(d=>d.id==id);
+    if(f){document.getElementById('editFuncId').value=f.id;document.getElementById('fNome').value=f.nome;document.getElementById('fCargo').value=f.cargo||'';document.getElementById('fSalario').value=f.salario_base||'';document.getElementById('modalTitleFunc').textContent='Editar Funcionário';document.getElementById('modalFuncionario').classList.add('open');}
+}
+
+function salvarFuncionario(){
+    const id=document.getElementById('editFuncId').value;
+    const data={nome:document.getElementById('fNome').value.trim(),cargo:document.getElementById('fCargo').value.trim(),salario_base:parseFloat(document.getElementById('fSalario').value)||0};
+    if(!data.nome){notif('Nome obrigatório!',true);return;}
+    const url=id?'/api/funcionarios/'+id:'/api/funcionarios';const method=id?'PUT':'POST';
+    fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()).then(res=>{if(res.ok||res.id){notif(id?'Funcionário atualizado!':'Funcionário criado!');fecharModal('modalFuncionario');carregar();}});
+}
+
+function excluirFunc(id,nome){
+    if(!confirm(`Excluir "${nome}"?`))return;
+    fetch('/api/funcionarios/'+id,{method:'DELETE'}).then(r=>r.json()).then(res=>{if(res.ok){notif('Funcionário excluído!');carregar();}});
+}
+
+function registrarEntrada(){
+    const id=document.getElementById('filtroFuncPresenca').value;
+    if(!id){notif('Selecione funcionário!',true);return;}
+    fetch('/api/presencas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({funcionario_id:parseInt(id)})}).then(r=>r.json()).then(res=>{if(res.ok){notif('Entrada registada!');carregarPresencas();}});
+}
+
+function registrarSaida(){
+    const id=document.getElementById('filtroFuncPresenca').value;
+    if(!id){notif('Selecione funcionário!',true);return;}
+    const agora=new Date();const hora=String(agora.getHours()).padStart(2,'0')+':'+String(agora.getMinutes()).padStart(2,'0');
+    fetch('/api/presencas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({funcionario_id:parseInt(id),hora_saida:hora})}).then(r=>r.json()).then(res=>{if(res.ok){notif('Saída registada!');carregarPresencas();}});
+}
+
+function carregarPresencas(){
+    fetch('/api/presencas').then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyPres');t.innerHTML='';
+        d.forEach(p=>{t.innerHTML+=`<tr><td>${p.funcionario}</td><td>${p.data}</td><td>${p.hora_entrada||'-'}</td><td>${p.hora_saida||'-'}</td><td>${p.horas_trabalhadas?p.horas_trabalhadas+'h':'-'}</td></tr>`;});
+    });
+}
+
+function carregarComissoes(){
+    const funcId=document.getElementById('filtroFuncComissao').value;
+    const url=funcId?'/api/comissoes?funcionario_id='+funcId:'/api/comissoes';
+    fetch(url).then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyCom');t.innerHTML='';
+        d.forEach(c=>{t.innerHTML+=`<tr><td>${c.funcionario}</td><td>${c.venda_id||'-'}</td><td>${moeda(c.valor_venda)}</td><td>${c.percentagem}%</td><td>${moeda(c.valor_comissao)}</td><td>${c.pago?'✅':'❌'}</td><td>${c.data}</td><td>${!c.pago?`<button class="btn btn-sm btn-success" onclick="pagarComissao(${c.id})">Pagar</button>`:''}</td></tr>`;});
+    });
+}
+
+function pagarComissao(id){
+    fetch('/api/comissoes/'+id+'/pagar',{method:'POST'}).then(r=>r.json()).then(res=>{if(res.ok){notif('Comissão paga!');carregarComissoes();}});
+}
+
+function salvarComissao(){
+    const data={funcionario_id:parseInt(document.getElementById('cFunc').value)||null,valor_venda:parseFloat(document.getElementById('cValor').value)||0,percentagem:parseFloat(document.getElementById('cPerc').value)||0};
+    if(!data.funcionario_id||!data.valor_venda||!data.percentagem){notif('Preencha todos os campos!',true);return;}
+    fetch('/api/comissoes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()).then(res=>{if(res.valor_comissao){notif('Comissão registada!');fecharModal('modalComissao');carregarComissoes();}});
+}
+
+// ==================== FOLHA DE SALÁRIO ====================
+function carregarFolhas() {
+    const mes = document.getElementById('filMes').value;
+    const ano = document.getElementById('filAno').value;
+    const status = document.getElementById('filStatusFolha').value;
+    let url = `/api/folhas-salario?mes=${mes}&ano=${ano}`;
+    if (status) url += `&status=${status}`;
+    fetch(url).then(r=>{if(!r.ok)throw new Error('Erro ao carregar folhas');return r.json()}).then(d => {
+        folhas = d;
+        const t = document.getElementById('tbodyFolha'); t.innerHTML = '';
+        if (!d.length) { t.innerHTML = '<tr><td colspan="9" class="text-center">Nenhuma folha encontrada para este período</td></tr>'; return; }
+        d.forEach(f => {
+            t.innerHTML += `<tr>
+                <td><input type="checkbox" class="checkFolha" value="${f.id}" ${f.status==='pago'?'disabled':''}></td>
+                <td>${f.funcionario_nome}</td>
+                <td>${f.cargo||'-'}</td>
+                <td>${moeda(f.salario_base)}</td>
+                <td>${moeda(f.outros_descontos)}</td>
+                <td><strong>${moeda(f.salario_liquido)}</strong></td>
+                <td>${f.status==='pago'?'✅ Pago':'⏳ Pendente'}</td>
+                <td>${f.mes}/${f.ano}</td>
+                <td>${f.data_processamento||'-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline" onclick="editarFolha(${f.id})" title="Editar">✏️</button>
+                    ${f.status!=='pago'?`<button class="btn btn-sm btn-success" onclick="pagarUnicaFolha(${f.id})" title="Pagar">💰</button>`:''}
+                    <button class="btn btn-sm btn-danger" onclick="excluirFolha(${f.id})" title="Excluir">🗑️</button>
+                </td>
+            </tr>`;
+        });
+    }).catch(e => notif(e.message || 'Erro ao carregar folhas', true));
+}
+
+function processarFolha() {
+    const mes = parseInt(document.getElementById('filMes').value);
+    const ano = parseInt(document.getElementById('filAno').value);
+    if (!confirm(`Processar folha de ${mes}/${ano} para todos os funcionários ativos?\nOs adiantamentos salariais pendentes serão descontados automaticamente.`)) return;
+    fetch('/api/folhas-salario/processar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mes, ano})
+    }).then(r=>r.json()).then(res => {
+        if (res.ids) {
+            notif(`Folha processada! ${res.quantidade} registo(s) criado(s).`);
+            carregarFolhas();
+        } else {
+            notif(res.erro || 'Erro ao processar', true);
+        }
+    });
+}
+
+// ==================== ADIANTAMENTOS SALARIAIS ====================
+function abrirModalAdiantamentoSalarial() {
+    fetch('/api/funcionarios?ativo=1').then(r=>r.json()).then(funcs => {
+        const sel = document.getElementById('asFunc');
+        sel.innerHTML = '<option value="">Selecionar...</option>';
+        funcs.forEach(f => { sel.innerHTML += `<option value="${f.id}">${f.nome}</option>`; });
+    });
+    document.getElementById('asValor').value = '';
+    document.getElementById('asData').value = new Date().toISOString().slice(0,10);
+    document.getElementById('asObs').value = '';
+    document.getElementById('modalAdiantamentoSalarial').classList.add('open');
+}
+
+function salvarAdiantamentoSalarial() {
+    const funcId = document.getElementById('asFunc').value;
+    let v = document.getElementById('asValor').value;
+    let valor = v.includes(',') ? v.replace(/\./g,'').replace(',','.') : v.replace(/\s/g,'');
+    const data = document.getElementById('asData').value;
+    const obs = document.getElementById('asObs').value.trim();
+    if (!funcId || !valor || !data) { notif('Preencha funcionário, valor e data', true); return; }
+    fetch('/api/adiantamentos-salariais', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({funcionario_id: parseInt(funcId), valor: parseFloat(valor), data, observacao: obs})
+    }).then(r=>r.json()).then(res => {
+        if (res.id) { notif('Adiantamento registado! Será descontado na próxima folha.'); fecharModal('modalAdiantamentoSalarial'); }
+        else notif('Erro ao registar', true);
+    });
+}
+
+function editarFolha(id) {
+    const f = folhas.find(d => d.id == id);
+    if (!f) return;
+    document.getElementById('editFolhaId').value = f.id;
+    document.getElementById('efOutrosDesc').value = f.outros_descontos || 0;
+    document.getElementById('modalEditarFolha').classList.add('open');
+}
+
+function salvarEdicaoFolha() {
+    const id = document.getElementById('editFolhaId').value;
+    const data = {
+        outros_descontos: parseFloat(document.getElementById('efOutrosDesc').value) || 0
+    };
+    fetch(`/api/folhas-salario/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    }).then(r=>r.json()).then(res => {
+        if (res.ok) {
+            notif('Folha atualizada!');
+            fecharModal('modalEditarFolha');
+            carregarFolhas();
+        }
+    });
+}
+
+function pagarUnicaFolha(id) {
+    const f = folhas.find(d => d.id == id);
+    if (!f) return;
+    if (!confirm(`Pagar folha de ${f.funcionario_nome} - ${moeda(f.salario_liquido)}?`)) return;
+    fetch(`/api/folhas-salario/${id}/pagar`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Folha paga!'); carregarFolhas(); }
+    });
+}
+
+function pagarFolhaSelecionadas() {
+    const checks = document.querySelectorAll('.checkFolha:checked');
+    if (!checks.length) { notif('Selecione pelo menos uma folha pendente!', true); return; }
+    if (!confirm(`Pagar ${checks.length} folha(s) selecionada(s)?`)) return;
+    let done = 0;
+    checks.forEach(ch => {
+        fetch(`/api/folhas-salario/${ch.value}/pagar`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        }).then(r=>r.json()).then(res => {
+            if (res.ok) done++;
+            if (done === checks.length) { notif(`${done} folha(s) paga(s)!`); carregarFolhas(); }
+        });
+    });
+}
+
+function excluirFolha(id) {
+    if (!confirm('Eliminar este registo de folha?')) return;
+    fetch(`/api/folhas-salario/${id}`, {method: 'DELETE'}).then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Registo eliminado!'); carregarFolhas(); }
+    });
+}
+
+function toggleAllFolha(el) {
+    document.querySelectorAll('.checkFolha:not(:disabled)').forEach(ch => ch.checked = el.checked);
+}
+
+// ==================== ALUGUER ====================
+function carregarAlugueres() {
+    const mes = document.getElementById('alMes').value;
+    const ano = document.getElementById('alAno').value;
+    const status = document.getElementById('alStatus').value;
+    let url = `/api/alugueres?mes=${mes}&ano=${ano}`;
+    if (status) url += `&status=${status}`;
+    fetch(url).then(r=>r.json()).then(d => {
+        const t = document.getElementById('tbodyAluguer'); t.innerHTML = '';
+        d.forEach(a => {
+            t.innerHTML += `<tr>
+                <td>${a.descricao}</td>
+                <td>${a.proprietario||'-'}</td>
+                <td>${moeda(a.valor)}</td>
+                <td>${a.data_vencimento||'-'}</td>
+                <td>${a.data_pagamento||'-'}</td>
+                <td>${a.status==='pago'?'✅ Pago':'⏳ Pendente'}</td>
+                <td>${a.mes}/${a.ano}</td>
+                <td>${a.observacao||'-'}</td>
+                <td>
+                    ${a.status!=='pago'?`<button class="btn btn-sm btn-success" onclick="pagarAluguer(${a.id})" title="Pagar">💰</button>`:''}
+                    <button class="btn btn-sm btn-danger" onclick="excluirAluguer(${a.id})" title="Excluir">🗑️</button>
+                </td>
+            </tr>`;
+        });
+    });
+}
+
+function abrirModalAluguer() {
+    const sel = document.getElementById('alMesModal');
+    sel.innerHTML = '';
+    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    meses.forEach((n,i) => { sel.innerHTML += `<option value="${i+1}">${n}</option>`; });
+    sel.value = document.getElementById('alMes').value;
+    document.getElementById('alAnoModal').value = document.getElementById('alAno').value;
+    document.getElementById('alDescricao').value = '';
+    document.getElementById('alProprietario').value = '';
+    document.getElementById('alValor').value = '';
+    document.getElementById('alVencimento').value = '';
+    document.getElementById('alObs').value = '';
+    document.getElementById('modalAluguer').classList.add('open');
+}
+
+function salvarAluguer() {
+    const descricao = document.getElementById('alDescricao').value.trim();
+    if (!descricao) { notif('Descrição obrigatória!', true); return; }
+    const data = {
+        descricao,
+        proprietario: document.getElementById('alProprietario').value.trim(),
+        valor: parseFloat(document.getElementById('alValor').value) || 0,
+        data_vencimento: document.getElementById('alVencimento').value,
+        mes: parseInt(document.getElementById('alMesModal').value),
+        ano: parseInt(document.getElementById('alAnoModal').value),
+        observacao: document.getElementById('alObs').value.trim()
+    };
+    if (!data.valor) { notif('Valor obrigatório!', true); return; }
+    fetch('/api/alugueres', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    }).then(r=>r.json()).then(res => {
+        if (res.id) { notif('Aluguer registado!'); fecharModal('modalAluguer'); carregarAlugueres(); }
+    });
+}
+
+function pagarAluguer(id) {
+    if (!confirm('Confirmar pagamento deste aluguer?')) return;
+    fetch(`/api/alugueres/${id}/pagar`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Aluguer pago!'); carregarAlugueres(); }
+    });
+}
+
+function excluirAluguer(id) {
+    if (!confirm('Eliminar este registo de aluguer?')) return;
+    fetch(`/api/alugueres/${id}`, {method: 'DELETE'}).then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Registo eliminado!'); carregarAlugueres(); }
+    });
+}
+
+document.getElementById('busca').addEventListener('input',e=>renderFunc(e.target.value));
+document.getElementById('filtroFuncComissao').addEventListener('change',carregarComissoes);
+document.getElementById('filMes').addEventListener('change', carregarFolhas);
+document.getElementById('filAno').addEventListener('change', carregarFolhas);
+document.getElementById('filStatusFolha').addEventListener('change', carregarFolhas);
+document.getElementById('alMes').addEventListener('change', carregarAlugueres);
+document.getElementById('alAno').addEventListener('change', carregarAlugueres);
+document.getElementById('alStatus').addEventListener('change', carregarAlugueres);
+document.querySelectorAll('.modal').forEach(m=>{m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});});
+carregar();
+</script>
+{% endblock %}

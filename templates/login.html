@@ -1,0 +1,338 @@
+﻿<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mateus Mabolacha — Entrar</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2310b981'/><stop offset='1' stop-color='%230ea5e9'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><rect x='14' y='38' width='72' height='6' rx='3' fill='white'/><rect x='14' y='62' width='72' height='6' rx='3' fill='white'/><rect x='22' y='20' width='20' height='16' rx='3' fill='rgba(255,255,255,0.92)'/><rect x='46' y='20' width='20' height='16' rx='3' fill='rgba(255,255,255,0.6)'/><rect x='30' y='44' width='20' height='16' rx='3' fill='rgba(255,255,255,0.8)'/><rect x='54' y='44' width='20' height='16' rx='3' fill='rgba(255,255,255,0.5)'/></svg>">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+@keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-20px); } }
+@keyframes pulse { 0%,100% { opacity:0.4; } 50% { opacity:0.8; } }
+@keyframes shake { 0%,100% { transform:translateX(0); } 20% { transform:translateX(-8px); } 40% { transform:translateX(8px); } 60% { transform:translateX(-4px); } 80% { transform:translateX(4px); } }
+@keyframes spinner { to { transform:rotate(360deg); } }
+
+body {
+    font-family:"Inter",system-ui,-apple-system,sans-serif;
+    background:#080c18;
+    color:#e2e8f0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+}
+
+.login-bg {
+    position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0;
+}
+.login-bg .orb {
+    position:absolute;
+    border-radius:50%;
+    filter:blur(80px);
+    opacity:0.3;
+    animation:float 8s ease-in-out infinite;
+}
+.login-bg .orb:nth-child(1) {
+    width:500px; height:500px;
+    background:radial-gradient(circle,rgba(16,185,129,0.3),transparent);
+    top:-10%; left:-10%;
+    animation-delay:0s;
+}
+.login-bg .orb:nth-child(2) {
+    width:400px; height:400px;
+    background:radial-gradient(circle,rgba(34,197,94,0.2),transparent);
+    bottom:-5%; right:-5%;
+    animation-delay:-3s;
+}
+.login-bg .orb:nth-child(3) {
+    width:300px; height:300px;
+    background:radial-gradient(circle,rgba(14,184,166,0.15),transparent);
+    top:40%; left:60%;
+    animation-delay:-6s;
+}
+.login-bg::after {
+    content:'';
+    position:absolute; inset:0;
+    background:url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    opacity:0.5;
+}
+
+.login-wrapper {
+    position:relative; z-index:1;
+    animation:fadeIn 0.6s ease-out;
+}
+
+.login-card {
+    background:rgba(26,35,53,0.85);
+    backdrop-filter:blur(24px) saturate(1.4);
+    border-radius:24px;
+    padding:48px 40px 40px;
+    width:400px;
+    max-width:92vw;
+    border:1px solid rgba(255,255,255,0.06);
+    box-shadow:0 32px 80px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.04);
+    transition:box-shadow 0.3s;
+}
+
+.header {
+    text-align:center;
+    margin-bottom:36px;
+}
+.logo-wrap {
+    width:64px; height:64px;
+    margin:0 auto 16px;
+    background:linear-gradient(135deg,#10b981,#0ea5e9);
+    border-radius:18px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px; font-weight:800; color:#fff;
+    box-shadow:0 8px 32px rgba(16,185,129,0.25);
+    position:relative;
+}
+.logo-wrap svg { width:30px; height:30px; }
+.logo-wrap::after {
+    content:'';
+    position:absolute; inset:-2px;
+    border-radius:20px;
+    background:linear-gradient(135deg,rgba(16,185,129,0.3),transparent);
+    z-index:-1;
+}
+.header h1 {
+    font-size:20px; font-weight:700;
+    letter-spacing:-0.3px;
+    color:#f1f5f9;
+}
+.header p {
+    font-size:13px; color:#64748b;
+    margin-top:4px;
+}
+
+.form-group {
+    margin-bottom:20px;
+}
+.form-group label {
+    display:block;
+    font-size:12px; color:#94a3b8;
+    margin-bottom:6px; font-weight:500;
+    text-transform:uppercase; letter-spacing:0.5px;
+}
+.input-wrap {
+    position:relative;
+}
+.input-wrap .icon {
+    position:absolute;
+    left:14px; top:50%;
+    transform:translateY(-50%);
+    color:#475569;
+    font-size:16px;
+    pointer-events:none;
+}
+.input {
+    width:100%;
+    padding:13px 14px 13px 42px;
+    background:rgba(15,23,42,0.6);
+    border:1.5px solid rgba(255,255,255,0.06);
+    border-radius:12px;
+    color:#e2e8f0;
+    font-size:15px;
+    outline:none;
+    transition:all 0.25s;
+}
+.input:focus {
+    border-color:#10b981;
+    box-shadow:0 0 0 4px rgba(16,185,129,0.12);
+    background:rgba(15,23,42,0.8);
+}
+.input::placeholder { color:#475569; }
+.pin-wrap { position:relative; }
+.toggle-pin {
+    position:absolute;
+    right:12px; top:50%;
+    transform:translateY(-50%);
+    background:none; border:none;
+    color:#64748b;
+    cursor:pointer;
+    font-size:16px;
+    padding:4px;
+    transition:color 0.2s;
+}
+.toggle-pin:hover { color:#94a3b8; }
+
+.btn {
+    width:100%;
+    padding:14px;
+    background:linear-gradient(135deg,#10b981,#0ea5e9);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    transition:all 0.25s;
+    margin-top:8px;
+    position:relative;
+    overflow:hidden;
+}
+.btn:hover {
+    transform:translateY(-1.5px);
+    box-shadow:0 8px 28px rgba(16,185,129,0.3);
+}
+.btn:active { transform:translateY(0); }
+.btn:disabled {
+    opacity:0.6;
+    cursor:not-allowed;
+    transform:none;
+}
+.btn .btn-text { transition:opacity 0.2s; }
+.btn.loading .btn-text { opacity:0; }
+.btn .spinner {
+    display:none;
+    position:absolute;
+    top:50%; left:50%;
+    margin:-10px 0 0 -10px;
+    width:20px; height:20px;
+    border:2px solid rgba(255,255,255,0.2);
+    border-top-color:#fff;
+    border-radius:50%;
+    animation:spinner 0.6s linear infinite;
+}
+.btn.loading .spinner { display:block; }
+
+.erro-wrap {
+    overflow:hidden;
+    max-height:0;
+    transition:max-height 0.35s ease,margin 0.35s ease;
+}
+.erro-wrap.show {
+    max-height:80px;
+    margin-bottom:20px;
+}
+.erro {
+    background:rgba(239,68,68,0.08);
+    border:1px solid rgba(239,68,68,0.2);
+    color:#fca5a5;
+    padding:12px 16px;
+    border-radius:10px;
+    font-size:13px;
+    text-align:center;
+    animation:shake 0.4s ease;
+}
+
+.footer {
+    text-align:center;
+    margin-top:24px;
+    font-size:11px;
+    color:#475569;
+    letter-spacing:0.3px;
+}
+
+@media (max-width:480px) {
+    .login-card { padding:36px 24px 32px; border-radius:20px; }
+    .header { margin-bottom:28px; }
+    .logo-wrap { width:54px; height:54px; font-size:22px; border-radius:14px; }
+    .header h1 { font-size:18px; }
+}
+</style>
+</head>
+<body>
+<div class="login-bg">
+    <div class="orb"></div>
+    <div class="orb"></div>
+    <div class="orb"></div>
+</div>
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="header">
+            <div class="logo-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3 7V5.5A1.5 1.5 0 0 1 4.5 4H9a1.5 1.5 0 0 1 1.5 1.5V7"/><path d="M13.5 7V6a1.5 1.5 0 0 1 1.5-1.5H19A1.5 1.5 0 0 1 20.5 6v1"/><rect x="3" y="7" width="7.5" height="6" rx="1"/><rect x="13.5" y="7" width="7.5" height="6" rx="1"/><rect x="3" y="15" width="7.5" height="5" rx="1"/><rect x="13.5" y="15" width="7.5" height="5" rx="1"/><path d="M3 10h1.5M13.5 10h1.5M3 18h1.5M13.5 18h1.5"/></svg></div>
+            <h1>Mateus Mabolacha</h1>
+            <p>Controle de Estoque · Sistema de Gestão PDV</p>
+        </div>
+
+        <div class="erro-wrap {% if erro %}show{% endif %}" id="erroWrap">
+            <div class="erro" id="erroMsg">{{ erro if erro else '' }}</div>
+        </div>
+
+        <form method="POST" id="loginForm">
+            <div class="form-group">
+                <label>Utilizador</label>
+                <div class="input-wrap">
+                    <span class="icon">👤</span>
+                    <input class="input" name="nome" placeholder="Administrador" required autofocus>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>PIN</label>
+                <div class="pin-wrap">
+                    <div class="input-wrap">
+                        <span class="icon">🔒</span>
+                        <input class="input" name="pin" type="password" placeholder="Digite o PIN" required id="pinInput">
+                    </div>
+                    <button type="button" class="toggle-pin" id="togglePin" aria-label="Mostrar PIN">👁️</button>
+                </div>
+            </div>
+            <button class="btn" type="submit" id="btnEntrar">
+                <span class="btn-text">Entrar no Sistema</span>
+                <span class="spinner"></span>
+            </button>
+        </form>
+
+        <div class="footer">Mateus Mabolacha &copy; 2026</div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const form = document.getElementById('loginForm');
+    const btn = document.getElementById('btnEntrar');
+    const pinInput = document.getElementById('pinInput');
+    const togglePin = document.getElementById('togglePin');
+    const erroWrap = document.getElementById('erroWrap');
+    const erroMsg = document.getElementById('erroMsg');
+
+    togglePin.addEventListener('click', function() {
+        const type = pinInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        pinInput.setAttribute('type', type);
+        this.textContent = type === 'password' ? '👁️' : '🙈';
+    });
+
+    form.addEventListener('submit', function(e) {
+        const nome = form.nome.value.trim();
+        const pin = form.pin.value.trim();
+        if (!nome) {
+            e.preventDefault();
+            showError('Nome é obrigatório');
+            form.nome.focus();
+            return;
+        }
+        if (!pin) {
+            e.preventDefault();
+            showError('PIN é obrigatório');
+            pinInput.focus();
+            return;
+        }
+        if (pin.length < 4) {
+            e.preventDefault();
+            showError('PIN deve ter pelo menos 4 caracteres');
+            pinInput.focus();
+            return;
+        }
+        btn.classList.add('loading');
+        btn.disabled = true;
+    });
+
+    function showError(msg) {
+        erroMsg.textContent = msg;
+        erroWrap.classList.add('show');
+        setTimeout(function() { erroWrap.classList.remove('show'); }, 5000);
+    }
+
+    {% if erro %}
+    setTimeout(function() {
+        erroWrap.classList.remove('show');
+    }, 8000);
+    {% endif %}
+})();
+</script>
+</body>
+</html>

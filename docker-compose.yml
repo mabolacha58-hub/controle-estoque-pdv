@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./controle_estoque.db:/app/controle_estoque.db
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-troque-esta-chave-no-docker}

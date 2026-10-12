@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-3 items-start">
+    <div class="flex-1">
+        <div class="flex gap-2 items-center mb-2"><h3 class="text-sm font-semibold">Contas a Pagar</h3><button class="btn btn-sm btn-primary" onclick="abrirModal('pagar')">+</button></div>
+        <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Fornecedor</th><th>Descrição</th><th>Valor</th><th>Saldo</th><th>Vencimento</th><th>Status</th><th></th></tr></thead><tbody id="tbodyPagar"></tbody></table></div>
+    </div>
+    <div class="flex-1">
+        <div class="flex gap-2 items-center mb-2"><h3 class="text-sm font-semibold">Contas a Receber</h3><button class="btn btn-sm btn-primary" onclick="abrirModal('receber')">+</button></div>
+        <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Cliente</th><th>Descrição</th><th>Valor</th><th>Saldo</th><th>Vencimento</th><th>Status</th><th></th></tr></thead><tbody id="tbodyReceber"></tbody></table></div>
+    </div>
+</div>
+<div class="mt-6">
+    <div class="flex gap-2 items-center mb-2"><h3 class="text-sm font-semibold">Fluxo de Caixa (30 dias)</h3></div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Dia</th><th>Entradas</th><th>Saídas</th><th>Saldo</th></tr></thead><tbody id="tbodyFluxo"></tbody></table></div>
+</div>
+<div class="mt-4">
+    <div class="flex gap-2 items-center mb-2"><h3 class="text-sm font-semibold">Movimentações</h3><button class="btn btn-sm btn-primary" onclick="abrirModal('mov')">+</button></div>
+    <div class="tabela-wrap"><table class="tabela"><thead><tr><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Forma</th><th>Data</th></tr></thead><tbody id="tbodyMov"></tbody></table></div>
+</div>
+<div class="modal" id="modalPagar"><div class="modal-content"><h3>Nova Conta a Pagar</h3>
+    <div class="form-group"><label>Fornecedor</label><select class="input w-full" id="pFornecedor"></select></div>
+    <div class="form-group"><label>Descrição</label><input class="input w-full" id="pDesc"></div>
+    <div class="form-row">
+        <div class="form-group"><label>Valor (MT)</label><input class="input w-full" id="pValor" type="number" step="0.01"></div>
+        <div class="form-group"><label>Vencimento</label><input class="input w-full" id="pVenc" type="date"></div>
+    </div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarPagar()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalPagar')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalPagarAcao"><div class="modal-content"><h3>Pagar Conta</h3><input type="hidden" id="pagarContaId">
+    <div class="form-group"><label>Valor a Pagar (MT)</label><input class="input w-full" id="pagarValor" type="number" step="0.01"></div>
+    <div class="form-group"><label>Forma de Pagamento</label><select class="input w-full" id="pagarForma"><option value="dinheiro">Dinheiro</option><option value="transferencia">Transferência</option><option value="cheque">Cheque</option><option value="cartao">Cartão</option></select></div>
+    <div class="form-group"><label>Banco</label><select class="input w-full" id="pagarBanco"></select></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="confirmarPagar()">💾 Pagar</button><button class="btn btn-outline" onclick="fecharModal('modalPagarAcao')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalReceber"><div class="modal-content"><h3>Nova Conta a Receber</h3>
+    <div class="form-group"><label>Cliente</label><select class="input w-full" id="rCliente"></select></div>
+    <div class="form-group"><label>Descrição</label><input class="input w-full" id="rDesc"></div>
+    <div class="form-row">
+        <div class="form-group"><label>Valor (MT)</label><input class="input w-full" id="rValor" type="number" step="0.01"></div>
+        <div class="form-group"><label>Vencimento</label><input class="input w-full" id="rVenc" type="date"></div>
+    </div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarReceber()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalReceber')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalReceberAcao"><div class="modal-content"><h3>Receber Conta</h3><input type="hidden" id="receberContaId">
+    <div class="form-group"><label>Valor a Receber (MT)</label><input class="input w-full" id="receberValor" type="number" step="0.01"></div>
+    <div class="form-group"><label>Forma de Pagamento</label><select class="input w-full" id="receberForma"><option value="dinheiro">Dinheiro</option><option value="transferencia">Transferência</option><option value="cheque">Cheque</option><option value="cartao">Cartão</option></select></div>
+    <div class="form-group"><label>Banco</label><select class="input w-full" id="receberBanco"></select></div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="confirmarReceber()">💾 Receber</button><button class="btn btn-outline" onclick="fecharModal('modalReceberAcao')">Cancelar</button></div>
+</div></div>
+<div class="modal" id="modalMov"><div class="modal-content"><h3>Novo Movimento</h3>
+    <div class="form-group"><label>Tipo</label><select class="input w-full" id="mTipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+    <div class="form-group"><label>Categoria</label><input class="input w-full" id="mCat"></div>
+    <div class="form-group"><label>Descrição</label><input class="input w-full" id="mDesc"></div>
+    <div class="form-row">
+        <div class="form-group"><label>Valor (MT)</label><input class="input w-full" id="mValor" type="number" step="0.01"></div>
+        <div class="form-group"><label>Forma</label><select class="input w-full" id="mForma"><option value="dinheiro">Dinheiro</option><option value="transferencia">Transferência</option><option value="cartao">Cartão</option></select></div>
+    </div>
+    <div class="flex gap-2 mt-4"><button class="btn btn-success" onclick="salvarMov()">💾 Salvar</button><button class="btn btn-outline" onclick="fecharModal('modalMov')">Cancelar</button></div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+let fornecedores=[], clientes=[], bancos=[];
+function carregar() {
+    fetch('/api/contas-pagar').then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyPagar');t.innerHTML='';
+        d.forEach(c=>{t.innerHTML+=`<tr><td>${c.fornecedor||'-'}</td><td>${c.descricao}</td><td>${moeda(c.valor)}</td><td>${moeda(c.saldo)}</td><td>${c.data_vencimento}</td><td><span class="tag tag-${c.status=='pago'?'success':c.status=='parcial'?'aviso':'info'}">${c.status}</span></td><td>${c.status!='pago'?`<button class="btn btn-sm btn-success" onclick="pagar(${c.id})">Pagar</button>`:''}</td></tr>`;});
+    });
+    fetch('/api/contas-receber').then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyReceber');t.innerHTML='';
+        d.forEach(c=>{t.innerHTML+=`<tr><td>${c.cliente||'-'}</td><td>${c.descricao}</td><td>${moeda(c.valor)}</td><td>${moeda(c.saldo)}</td><td>${c.data_vencimento}</td><td><span class="tag tag-${c.status=='recebido'?'success':c.status=='parcial'?'aviso':'info'}">${c.status}</span></td><td>${c.status!='recebido'?`<button class="btn btn-sm btn-success" onclick="receber(${c.id})">Receber</button>`:''}</td></tr>`;});
+    });
+    fetch('/api/fluxo-caixa').then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyFluxo');t.innerHTML='';
+        d.forEach(f=>{const saldo=(f.entradas||0)-(f.saidas||0);t.innerHTML+=`<tr><td>${f.dia}</td><td>${moeda(f.entradas)}</td><td>${moeda(f.saidas)}</td><td class="${saldo<0?'saldo-dev':''}">${moeda(saldo)}</td></tr>`;});
+    });
+    fetch('/api/movimentos-financeiros').then(r=>r.json()).then(d=>{
+        const t=document.getElementById('tbodyMov');t.innerHTML='';
+        d.forEach(m=>{t.innerHTML+=`<tr><td><span class="tag tag-${m.tipo=='entrada'?'success':'danger'}">${m.tipo}</span></td><td>${m.categoria}</td><td>${m.descricao}</td><td>${moeda(m.valor)}</td><td>${m.forma_pagamento||'-'}</td><td>${m.data_movimento}</td></tr>`;});
+    });
+    fetch('/api/fornecedores').then(r=>r.json()).then(d=>{fornecedores=d;
+        const sel=document.getElementById('pFornecedor');sel.innerHTML='<option value="">Selecione</option>';
+        d.forEach(f=>{sel.innerHTML+=`<option value="${f.id}">${f.nome}</option>`;});});
+    fetch('/api/clientes').then(r=>r.json()).then(d=>{clientes=d;
+        const sel=document.getElementById('rCliente');sel.innerHTML='<option value="">Selecione</option>';
+        d.forEach(c=>{sel.innerHTML+=`<option value="${c.id}">${c.nome}</option>`;});});
+    fetch('/api/bancos').then(r=>r.json()).then(d=>{bancos=d;
+        ['pagarBanco','receberBanco'].forEach(id=>{
+            const sel=document.getElementById(id);sel.innerHTML='<option value="">Nenhum</option>';
+            d.forEach(b=>{sel.innerHTML+=`<option value="${b.id}">${b.nome}</option>`;});});});
+}
+function abrirModal(tipo){document.getElementById('modal'+tipo.charAt(0).toUpperCase()+tipo.slice(1)).classList.add('open');}
+function fecharModal(id){document.getElementById(id).classList.remove('open');}
+function salvarPagar(){
+    const data={fornecedor_id:parseInt(document.getElementById('pFornecedor').value)||null,descricao:document.getElementById('pDesc').value.trim(),
+        valor:parseFloat(document.getElementById('pValor').value)||0,data_vencimento:document.getElementById('pVenc').value};
+    if(!data.fornecedor_id||!data.descricao||!data.valor){notif('Preencha todos os campos!',true);return;}
+    fetch('/api/contas-pagar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.id){notif('Conta criada!');fecharModal('modalPagar');carregar();}});
+}
+function salvarReceber(){
+    const data={cliente_id:parseInt(document.getElementById('rCliente').value)||null,descricao:document.getElementById('rDesc').value.trim(),
+        valor:parseFloat(document.getElementById('rValor').value)||0,data_vencimento:document.getElementById('rVenc').value};
+    if(!data.cliente_id||!data.descricao||!data.valor){notif('Preencha todos os campos!',true);return;}
+    fetch('/api/contas-receber',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.id){notif('Conta criada!');fecharModal('modalReceber');carregar();}});
+}
+function pagar(id){
+    document.getElementById('pagarContaId').value=id;
+    document.getElementById('pagarValor').value='';
+    document.getElementById('modalPagarAcao').classList.add('open');
+}
+function receber(id){
+    document.getElementById('receberContaId').value=id;
+    document.getElementById('receberValor').value='';
+    document.getElementById('modalReceberAcao').classList.add('open');
+}
+function confirmarPagar(){
+    const id=document.getElementById('pagarContaId').value;
+    const data={valor:parseFloat(document.getElementById('pagarValor').value)||0,banco_id:document.getElementById('pagarBanco').value||null,forma_pagamento:document.getElementById('pagarForma').value};
+    if(!data.valor){notif('Informe o valor!',true);return;}
+    fetch('/api/contas-pagar/'+id+'/pagar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.ok){notif('Conta paga!');fecharModal('modalPagarAcao');carregar();}});
+}
+function confirmarReceber(){
+    const id=document.getElementById('receberContaId').value;
+    const data={valor:parseFloat(document.getElementById('receberValor').value)||0,banco_id:document.getElementById('receberBanco').value||null,forma_pagamento:document.getElementById('receberForma').value};
+    if(!data.valor){notif('Informe o valor!',true);return;}
+    fetch('/api/contas-receber/'+id+'/receber',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.ok){notif('Conta recebida!');fecharModal('modalReceberAcao');carregar();}});
+}
+function salvarMov(){
+    const data={tipo:document.getElementById('mTipo').value,categoria:document.getElementById('mCat').value.trim(),descricao:document.getElementById('mDesc').value.trim(),
+        valor:parseFloat(document.getElementById('mValor').value)||0,forma_pagamento:document.getElementById('mForma').value};
+    if(!data.descricao||!data.valor){notif('Preencha descrição e valor!',true);return;}
+    fetch('/api/movimentos-financeiros',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{if(res.id){notif('Movimento registado!');fecharModal('modalMov');carregar();}});
+}
+document.querySelectorAll('.modal').forEach(m=>{m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});});
+carregar();
+</script>
+{% endblock %}

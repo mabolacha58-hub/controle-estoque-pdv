@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.cfg-card { background:var(--bg2); border:1px solid var(--borda); border-radius:12px; padding:24px; }
+.cfg-card h3 { font-size:14px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.cfg-card .form-group { margin-bottom:16px; }
+.cfg-card label { display:block; font-size:12px; color:var(--texto2); margin-bottom:6px; font-weight:500; }
+.cfg-card .input { width:100%; }
+.cfg-card .hint { font-size:11px; color:var(--texto3); margin-top:4px; }
+.cfg-card select.input { cursor:pointer; }
+@media(max-width:800px){ .cfg-grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="cfg-grid">
+    <div class="cfg-card">
+        <h3>🏪 Dados da Loja</h3>
+        <div class="form-group"><label>Nome da Loja</label><input class="input" id="fLojaNome" placeholder="Ex: Minha Loja"></div>
+        <div class="form-group"><label>NIF</label><input class="input" id="fLojaNif" placeholder="NIF da loja"></div>
+        <div class="form-group"><label>Endereço</label><input class="input" id="fLojaEndereco" placeholder="Endereço completo"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Telefone</label><input class="input" id="fLojaTelefone" placeholder="Telefone"></div>
+            <div class="form-group"><label>Email</label><input class="input" id="fLojaEmail" placeholder="Email"></div>
+        </div>
+        <div class="form-group"><label>IVA Padrão (%)</label>
+            <select class="input" id="fIvaPadrao"><option value="0">0%</option><option value="5">5%</option><option value="14">14%</option><option value="17">17%</option><option value="22">22%</option></select>
+        </div>
+    </div>
+
+    <div class="cfg-card">
+        <h3>🔄 Backup Automático</h3>
+        <div class="form-group">
+            <label>Backup Automático</label>
+            <select class="input" id="fBackupAuto"><option value="0">Desativado</option><option value="1">Ativado</option></select>
+            <div class="hint">Faz cópia de segurança automaticamente</div>
+        </div>
+        <div class="form-group">
+            <label>Intervalo (horas)</label>
+            <select class="input" id="fBackupIntervalo">
+                <option value="1">1 hora</option><option value="6">6 horas</option>
+                <option value="12">12 horas</option><option value="24">24 horas</option>
+                <option value="48">48 horas</option><option value="72">72 horas</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Pasta de Destino</label>
+            <input class="input" id="fBackupPasta" placeholder="C:\backups\">
+            <div class="hint">Caminho completo da pasta para guardar os backups</div>
+        </div>
+        <div class="form-group" id="backupStatus" style="display:none">
+            <div style="background:var(--bg3);border-radius:8px;padding:12px;font-size:12px">
+                <div>📦 Tamanho BD: <span id="bkTamanho"></span></div>
+                <div>🕐 Último backup: <span id="bkUltimo"></span></div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button class="btn btn-outline" onclick="fazerBackupAgora()">⬇ Descarregar BD</button>
+            <button class="btn btn-primary btn-sm" onclick="gerarBackupPasta()">💾 Guardar Backup</button>
+        </div>
+        <div style="margin-top:16px">
+            <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+                <label style="font-size:12px;color:var(--texto2);font-weight:600;margin:0">🕓 Backups Guardados</label>
+                <button class="btn btn-outline btn-sm" onclick="carregarBackups()">↻</button>
+            </div>
+            <div id="listaBackups" style="max-height:220px;overflow:auto;font-size:12px">
+                <div style="color:var(--texto3);padding:8px 0">A carregar backups...</div>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+            <label>Restaurar de um Backup</label>
+            <select class="input" id="restoreBackup"></select>
+            <div class="hint">Substitui a base de dados atual pelo backup selecionado</div>
+            <div class="flex gap-2" style="margin-top:8px">
+                <button class="btn btn-danger btn-sm" onclick="restaurarBackup()">♻ Restaurar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cfg-card">
+        <h3>🔔 Preferências</h3>
+        <div class="form-group">
+            <label>Notificações de Stock Baixo</label>
+            <select class="input" id="fNotifStock"><option value="1">Ativado</option><option value="0">Desativado</option></select>
+        </div>
+        <div class="form-group">
+            <label>Sons do Sistema</label>
+            <select class="input" id="fNotifSom"><option value="1">Ativado</option><option value="0">Desativado</option></select>
+            <div class="hint">Sons para vendas, alertas e erros</div>
+        </div>
+        <div class="form-group">
+            <label>Impressão Automática após Venda</label>
+            <select class="input" id="fImpressaoAuto"><option value="0">Desativado</option><option value="1">Ativado</option></select>
+            <div class="hint">Abre a impressão do recibo automaticamente</div>
+        </div>
+        <div class="form-group">
+            <label>Meta Diária de Vendas (MT)</label>
+            <input class="input" id="fMetaDiaria" type="number" min="0" step="0.01" placeholder="0,00">
+            <div class="hint">Valor esperado de vendas por dia para o dashboard</div>
+        </div>
+    </div>
+
+    <div class="cfg-card">
+        <h3>ℹ️ Sobre o Sistema</h3>
+        <div style="background:var(--bg3);border-radius:8px;padding:16px;font-size:12px;line-height:2">
+            <div><strong>Sistema:</strong> Controle de Estoque PDV</div>
+            <div><strong>Versão:</strong> 2.0</div>
+            <div><strong>Base de Dados:</strong> SQLite</div>
+            <div><strong>Total de Produtos:</strong> <span id="totalProd">—</span></div>
+            <div><strong>Total de Movimentações:</strong> <span id="totalMov">—</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="flex gap-2 mt-4" style="justify-content:flex-end">
+    <button class="btn btn-success btn-lg" onclick="salvarTudo()">💾 Salvar Configurações</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let configs = {};
+
+function carregar() {
+    Promise.all([
+        fetch('/api/configuracoes').then(r=>r.json()),
+        fetch('/api/produtos').then(r=>r.json()),
+        fetch('/api/movimentacoes').then(r=>r.json()),
+        fetch('/api/backup/info').then(r=>r.json())
+    ]).then(([cfg, prods, movs, bkInfo]) => {
+        configs = cfg;
+        document.getElementById('fLojaNome').value = cfg.loja_nome || '';
+        document.getElementById('fLojaNif').value = cfg.loja_nif || '';
+        document.getElementById('fLojaEndereco').value = cfg.loja_endereco || '';
+        document.getElementById('fLojaTelefone').value = cfg.loja_telefone || '';
+        document.getElementById('fLojaEmail').value = cfg.loja_email || '';
+        document.getElementById('fIvaPadrao').value = cfg.iva_padrao || '0';
+        document.getElementById('fBackupAuto').value = cfg.backup_auto || '0';
+        document.getElementById('fBackupIntervalo').value = cfg.backup_intervalo || '24';
+        document.getElementById('fBackupPasta').value = cfg.backup_pastacaminho || '';
+        document.getElementById('fNotifStock').value = cfg.notif_stock || '1';
+        document.getElementById('fNotifSom').value = cfg.notif_som || '1';
+        document.getElementById('fImpressaoAuto').value = cfg.impressao_automatica || '0';
+        document.getElementById('fMetaDiaria').value = cfg.meta_diaria_vendas || '0';
+        document.getElementById('totalProd').textContent = prods.length;
+        document.getElementById('totalMov').textContent = movs.length;
+        const bs = document.getElementById('backupStatus');
+        if (cfg.backup_auto == '1' || bkInfo.ultimo_backup) {
+            bs.style.display = 'block';
+            document.getElementById('bkTamanho').textContent = bkInfo.tamanho > 0 ? (bkInfo.tamanho/1024).toFixed(1)+' KB' : '—';
+            document.getElementById('bkUltimo').textContent = bkInfo.ultimo_backup ? bkInfo.ultimo_backup : 'Nunca';
+        }
+    });
+}
+
+function salvarTudo() {
+    const data = {
+        loja_nome: document.getElementById('fLojaNome').value.trim(),
+        loja_nif: document.getElementById('fLojaNif').value.trim(),
+        loja_endereco: document.getElementById('fLojaEndereco').value.trim(),
+        loja_telefone: document.getElementById('fLojaTelefone').value.trim(),
+        loja_email: document.getElementById('fLojaEmail').value.trim(),
+        iva_padrao: document.getElementById('fIvaPadrao').value,
+        backup_auto: document.getElementById('fBackupAuto').value,
+        backup_intervalo: document.getElementById('fBackupIntervalo').value,
+        backup_pastacaminho: document.getElementById('fBackupPasta').value.trim(),
+        notif_stock: document.getElementById('fNotifStock').value,
+        notif_som: document.getElementById('fNotifSom').value,
+        impressao_automatica: document.getElementById('fImpressaoAuto').value,
+        meta_diaria_vendas: document.getElementById('fMetaDiaria').value
+    };
+    fetch('/api/configuracoes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Configurações salvas!'); configs = data; }
+        else { notif('Erro ao salvar', true); }
+    });
+}
+
+function fazerBackupAgora() {
+    notif('A gerar backup...');
+    fetch('/api/backup').then(r => {
+        if (r.ok) { notif('Backup descarregado!'); carregar(); }
+    });
+}
+
+function gerarBackupPasta() {
+    notif('A guardar backup na pasta...');
+    fetch('/api/backup/manual', {method:'POST'})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Backup guardado!'); carregar(); carregarBackups(); }
+        else { notif('Erro ao guardar backup', true); }
+    });
+}
+
+function carregarBackups() {
+    const lista = document.getElementById('listaBackups');
+    const sel = document.getElementById('restoreBackup');
+    fetch('/api/backups/list').then(r=>r.json()).then(res => {
+        const bks = (res && res.backups) || [];
+        if (!bks.length) {
+            lista.innerHTML = '<div style="color:var(--texto3);padding:8px 0">Nenhum backup encontrado</div>';
+            sel.innerHTML = '<option value="">Sem backups disponíveis</option>';
+            return;
+        }
+        lista.innerHTML = bks.map(b =>
+            `<div style="display:flex;justify-content:space-between;padding:6px 4px;border-bottom:1px solid var(--borda)">
+                <span title="${b.pasta}">📄 ${b.nome}</span>
+                <span style="color:var(--texto3)">${(b.tamanho/1024).toFixed(0)} KB · ${b.data}</span>
+            </div>`).join('');
+        sel.innerHTML = '<option value="">Selecionar backup...</option>' + bks.map(b =>
+            `<option value="${b.nome}">${b.nome} (${b.data})</option>`).join('');
+    });
+}
+
+function restaurarBackup() {
+    const nome = document.getElementById('restoreBackup').value;
+    if (!nome) { notif('Selecione um backup', true); return; }
+    if (!confirm('Restaurar substituirá a base de dados atual. Continuar?')) return;
+    fetch('/api/restore', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({caminho: nome})})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Base de dados restaurada!'); carregar(); }
+        else { notif('Erro ao restaurar: '+(res.erro||'desconhecido'), true); }
+    });
+}
+
+carregar();
+carregarBackups();
+</script>
+{% endblock %}

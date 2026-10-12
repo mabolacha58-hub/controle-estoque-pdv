@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg flex-1" id="busca" placeholder="Buscar fornecedor...">
+    <button class="btn btn-primary" onclick="abrirModal()">+ Novo Fornecedor</button>
+</div>
+<div class="tabela-wrap">
+    <table class="tabela"><thead><tr><th>ID</th><th>Nome</th><th>NIF</th><th>Telefone</th><th>Email</th><th>Contacto</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Novo Fornecedor</h3>
+        <input type="hidden" id="editId">
+        <div class="form-row">
+            <div class="form-group"><label>Nome</label><input class="input" id="fNome"></div>
+            <div class="form-group"><label>NIF</label><input class="input" id="fNif"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Telefone</label><input class="input" id="fTel"></div>
+            <div class="form-group"><label>Email</label><input class="input" id="fEmail"></div>
+        </div>
+        <div class="form-group"><label>Morada</label><input class="input" id="fMorada"></div>
+        <div class="form-group"><label>Pessoa de Contacto</label><input class="input" id="fContato"></div>
+        <div class="flex gap-2 mt-4">
+            <button class="btn btn-success" onclick="salvar()">💾 Salvar</button>
+            <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dados = [];
+function carregar() { fetch('/api/fornecedores').then(r=>r.json()).then(d=>{dados=d;render('');}); }
+function render(b) {
+    const tbody = document.getElementById('tbody'), busca = (b||'').toLowerCase();
+    tbody.innerHTML = '';
+    dados.filter(f => !busca || f.nome.toLowerCase().includes(busca))
+    .forEach(f => { tbody.innerHTML += `<tr><td>${f.id}</td><td>${f.nome}</td><td>${f.nif||'-'}</td>
+        <td>${f.telefone||'-'}</td><td>${f.email||'-'}</td><td>${f.contato||'-'}</td>
+        <td><span class="acao-excluir" onclick="editar(${f.id})">✏️</span>
+            <span class="acao-excluir" onclick="excluir(${f.id},'${f.nome}')">🗑️</span></td></tr>`;
+    });
+}
+function abrirModal(d) {
+    document.getElementById('modal').classList.add('open');
+    document.getElementById('modalTitle').textContent = d ? 'Editar Fornecedor' : 'Novo Fornecedor';
+    document.getElementById('editId').value = d ? d.id : '';
+    ['Nome','Nif','Tel','Email','Morada','Contato'].forEach(c => {
+        const v = d ? (d[c.toLowerCase()]||'') : '';
+        document.getElementById('f'+c).value = v;
+    });
+}
+function fecharModal() { document.getElementById('modal').classList.remove('open'); }
+function salvar() {
+    const id = document.getElementById('editId').value;
+    const data = {};
+    ['nome','nif','telefone','email','morada','contato'].forEach(c => data[c]=document.getElementById('f'+c.charAt(0).toUpperCase()+c.slice(1)).value.trim());
+    if (!data.nome) { notif('Nome obrigatório!',true); return; }
+    fetch(id?'/api/fornecedores/'+id:'/api/fornecedores',{method:id?'PUT':'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => { if(res.ok) { notif(id?'Atualizado!':'Criado!'); fecharModal(); carregar(); } });
+}
+function editar(id) { const f=dados.find(d=>d.id==id); if(f) abrirModal(f); }
+function excluir(id,nome) {
+    if(!confirm(`Excluir fornecedor "${nome}"?`)) return;
+    fetch('/api/fornecedores/'+id,{method:'DELETE'}).then(r=>r.json()).then(res => { if(res.ok) { notif('Excluído!'); carregar(); } });
+}
+document.getElementById('busca').addEventListener('input',e=>render(e.target.value));
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+carregar();
+</script>
+{% endblock %}

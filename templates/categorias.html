@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex gap-2 items-center mb-4">
+    <input class="input input-lg" id="fNome" placeholder="Nome da categoria..." style="flex:1">
+    <input class="input input-lg" id="fDesc" placeholder="Descrição..." style="flex:1">
+    <button class="btn btn-success" onclick="adicionar()">+ Adicionar</button>
+</div>
+
+<div class="tabela-wrap">
+    <table class="tabela">
+        <thead><tr><th>ID</th><th>Nome</th><th>Descrição</th><th>Qtd Produtos</th><th>Ações</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function carregar() {
+    fetch('/api/categorias').then(r=>r.json()).then(data => {
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+        data.forEach(c => {
+            tbody.innerHTML += `<tr>
+                <td>${c.id}</td>
+                <td>${c.nome}</td>
+                <td>${c.descricao}</td>
+                <td>${c.qtd}</td>
+                <td><button class="btn btn-sm btn-danger" onclick="excluir(${c.id})">🗑️</button></td>
+            </tr>`;
+        });
+    });
+}
+
+function adicionar() {
+    const nome = document.getElementById('fNome').value.trim();
+    if (!nome) { notif('Digite um nome!', true); return; }
+    fetch('/api/categorias', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({nome, descricao: document.getElementById('fDesc').value.trim()})})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) {
+            notif('Categoria adicionada!');
+            document.getElementById('fNome').value = '';
+            document.getElementById('fDesc').value = '';
+            carregar();
+        } else { notif(res.erro||'Erro', true); }
+    });
+}
+
+function excluir(id) {
+    if (!confirm('Excluir categoria?')) return;
+    fetch(`/api/categorias/${id}`, {method:'DELETE'})
+    .then(r=>r.json()).then(res => {
+        if (res.ok) { notif('Categoria excluída!'); carregar(); }
+        else { notif(res.erro||'Erro', true); }
+    });
+}
+
+carregar();
+</script>
+{% endblock %}

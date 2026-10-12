@@ -1,0 +1,773 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="pdv-layout">
+    <div class="pdv-left">
+        <div class="pdv-overview">
+            <div class="pdv-card">
+                <span class="pdv-card-label">Produtos</span>
+                <strong>{{ prods|length }}</strong>
+            </div>
+            <div class="pdv-card">
+                <span class="pdv-card-label">Categorias</span>
+                <strong>{{ categorias|length }}</strong>
+            </div>
+            <div class="pdv-card">
+                <span class="pdv-card-label">Clientes</span>
+                <strong>{{ clientes|length }}</strong>
+            </div>
+            <div class="pdv-card">
+                <span class="pdv-card-label">Stock crítico</span>
+                <strong>{{ stock_critico }}</strong>
+            </div>
+        </div>
+        <div class="pdv-toolbar">
+            <input class="input input-lg search-icon" id="pdvBusca" placeholder="Buscar produto ou código..." autofocus>
+            <input class="input qtd-input" id="pdvQtd" type="number" value="1" min="1" step="1">
+            <span class="caixa-badge" id="caixaStatusPdv" onclick="window.location.href='/caixa'" title="Ir para Caixa">⏳</span>
+        </div>
+        <div class="cat-filtros" id="catFiltros">
+            <button class="cat-chip ativo" data-cat="">Todos</button>
+            {% for c in categorias %}
+            <button class="cat-chip" data-cat="{{c.nome}}">{{c.nome}}</button>
+            {% endfor %}
+        </div>
+        <div class="prod-grid" id="prodGrid">
+            {% for p in prods %}
+            {% set estoque = p.quantidade|replace(',','.')|float %}
+            {% set stock_class = 'red' if estoque <= 3 else ('yellow' if estoque <= 10 else 'green') %}
+             <div class="prod-card {{stock_class}}" data-id="{{p.id}}" data-nome="{{p.nome}}"
+                 data-preco="{{p.preco_venda|replace(',','.')}}"
+                 data-estoque="{{p.quantidade|replace(',','.')}}"
+                 data-codigo="{{p.codigo}}" data-iva="{{p.iva}}"
+                 data-categoria="{{p.categoria_nome}}">
+                {% if p.foto %}
+                <img src="/api/produtos/foto/{{p.foto}}" class="pdv-prod-foto" loading="lazy">
+                {% endif %}
+                <div class="nome">{{p.nome}}</div>
+                <div class="preco">{{moeda(p.preco_venda)}}</div>
+                <div class="meta-row">
+                    <span class="categoria">{{p.categoria_nome}}</span>
+                    <span class="iva-badge">{{p.iva}}% IVA</span>
+                </div>
+                <div class="stock-row">
+                    <span class="stock-dot {{stock_class}}"></span>
+                    <span>{{p.quantidade}} em stock</span>
+                </div>
+            </div>
+            {% endfor %}
+            <div class="empty-state" id="emptyGrid" style="display:none">
+                <div class="icon">🔍</div>
+                <h4>Nenhum produto</h4>
+                <p>Tente outro termo ou categoria</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="pdv-right">
+        <div class="pdv-carrinho">
+            <div class="pdv-carrinho-header">
+                <h3>Carrinho</h3>
+                <span class="badge-count" id="cartCount">0</span>
+                <div class="cart-actions">
+                    <button onclick="limparCarrinho()" title="Limpar carrinho">🗑️</button>
+                </div>
+            </div>
+            <div class="cart-items" id="cartItems">
+                <div class="empty">
+                    <div class="ico">🛒</div>
+                    <p>Carrinho vazio</p>
+                </div>
+            </div>
+
+            <div class="cart-resumo">
+                <div class="cart-subtotal" id="cartSubtotal" style="display:none">
+                    <span>Subtotal</span>
+                    <span class="val" id="cartSubtotalVal">0,00 MT</span>
+                </div>
+
+                <div class="cart-total">
+                    <span>TOTAL</span>
+                    <span class="valor" id="cartTotal">0,00 MT</span>
+                </div>
+
+                <div class="cart-total-row">
+                    <label>Cliente</label>
+                    <select class="input-sm" id="clienteSelect" disabled>
+                        <option value="">Consumidor Final</option>
+                        {% for c in clientes %}
+                        <option value="{{c.id}}">{{c.nome}} {% if c.nif %}· {{c.nif}}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn-sm btn-outline" id="clienteClearBtn" onclick="document.getElementById('clienteSelect').value=''" title="Limpar">✕</button>
+                </div>
+
+                <div class="cart-total-row">
+                    <label>Data</label>
+                    <input class="input-sm" id="vendaData" type="date">
+                </div>
+
+                <div class="cart-total-row">
+                    <label>Filial</label>
+                    <select class="input-sm" id="filialSelect">
+                        {% for f in filiais %}
+                        <option value="{{f.id}}">{{f.nome}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="cart-total-row">
+                    <label>Desc. %</label>
+                    <input class="input-sm" id="descontoTotal" type="number" min="0" max="100" step="0.5" value="0">
+                </div>
+
+                <div class="payment-card">
+                    <div class="payment-card-top">
+                        <div class="payment-mode-label">Método de pagamento</div>
+                        <span class="payment-method-badge" id="paymentMethodBadge">Dinheiro</span>
+                    </div>
+                    <div class="payment-card-total">
+                        <span>Total a pagar</span>
+                        <strong id="paymentTotalLabel">0,00 MT</strong>
+                    </div>
+                    <div class="cart-pag" id="pagBotoes">
+                        <button class="pag-btn ativo" data-pag="Dinheiro"><span class="pag-icon">💰</span> Dinheiro</button>
+                        <button class="pag-btn" data-pag="Cartão Débito"><span class="pag-icon">💳</span> Débito</button>
+                        <button class="pag-btn" data-pag="Cartão Crédito"><span class="pag-icon">💳</span> Crédito</button>
+                        <button class="pag-btn" data-pag="Transferência"><span class="pag-icon">📱</span> Transfer.</button>
+                        <button class="pag-btn" data-pag="Faturar"><span class="pag-icon">📋</span> Faturar</button>
+                    </div>
+
+                    <div class="payment-note" id="paymentNote">Dinheiro: digite o valor recebido no numpad.</div>
+                </div>
+
+                <div class="troco-display" id="trocoDisplay" style="display:none">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;gap:12px">
+                        <span><span class="label">Recebido</span><br><span class="recebido-val" id="trocoRecebido">0,00 MT</span></span>
+                        <span><span class="label">Troco</span><br><span class="valor" id="trocoValor">0,00 MT</span></span>
+                    </div>
+                </div>
+
+                <div class="cart-botoes">
+                    <button class="btn btn-success btn-lg" id="btnFinalizar">💳 Finalizar Venda</button>
+                    <button class="btn btn-outline" onclick="limparCarrinho()">🗑️</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="numpad" id="numpad">
+            <button class="num" data-num="7">7</button>
+            <button class="num" data-num="8">8</button>
+            <button class="num" data-num="9">9</button>
+            <button data-num="back" class="limpar">⌫</button>
+            <button class="num" data-num="4">4</button>
+            <button class="num" data-num="5">5</button>
+            <button class="num" data-num="6">6</button>
+            <button data-num="limpar" class="limpar">C</button>
+            <button class="num" data-num="1">1</button>
+            <button class="num" data-num="2">2</button>
+            <button class="num" data-num="3">3</button>
+            <button class="num zero" data-num="0">0</button>
+            <button class="num" data-num=".">.</button>
+            <button data-num="enter" class="enter" id="numpadEnter">↵</button>
+        </div>
+
+        <div class="shortcuts-bar">
+            <kbd><b>F8</b> Busca</kbd>
+            <kbd><b>F2</b> Qtd</kbd>
+            <kbd><b>Enter</b> Adiciona</kbd>
+            <kbd><b>Ctrl+Enter</b> Finalizar</kbd>
+            <kbd><b>ESC</b> Fechar</kbd>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modalRecibo">
+    <div class="modal-content modal-sm">
+        <div id="reciboConteudo"></div>
+        <div class="flex gap-2 mt-4" style="justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="imprimirRecibo()">🖨️ Imprimir</button>
+            <button class="btn btn-outline" onclick="imprimirTermico()" title="Impressão Térmica USB">🧾 USB Térmica</button>
+            <button class="btn btn-outline" onclick="exportarTxt()">📄 TXT</button>
+            <button class="btn btn-outline" onclick="fecharRecibo()">Fechar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const carrinho = [];
+const lojaNome = storeConfig.loja_nome || 'CONTROLE DE ESTOQUE';
+const lojaNif = storeConfig.loja_nif ? 'NIF: '+storeConfig.loja_nif : '';
+const lojaEnd = storeConfig.loja_endereco || '';
+const lojaTel = storeConfig.loja_telefone ? 'Tel: '+storeConfig.loja_telefone : '';
+let catAtiva = '';
+let barcodeBuffer = '';
+let barcodeTimer = null;
+
+function renderProdutos() {
+    const busca = (document.getElementById('pdvBusca').value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const grid = document.getElementById('prodGrid');
+    const empty = document.getElementById('emptyGrid');
+    let count = 0;
+    grid.querySelectorAll('.prod-card').forEach(card => {
+        const nome = (card.dataset.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+        const cod = (card.dataset.codigo||'').toLowerCase();
+        const cat = card.dataset.categoria || '';
+        const matchBusca = !busca || nome.includes(busca) || cod.includes(busca);
+        const matchCat = !catAtiva || cat === catAtiva;
+        card.style.display = (matchBusca && matchCat) ? '' : 'none';
+        if (matchBusca && matchCat) count++;
+    });
+    empty.style.display = count === 0 ? 'block' : 'none';
+}
+
+// Barcode scanner detection
+document.getElementById('pdvBusca').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        const val = e.target.value.trim();
+        // Try exact barcode match first
+        const byCode = document.querySelector(`.prod-card[data-codigo="${val}"]`);
+        if (byCode) { byCode.click(); e.target.value = ''; return; }
+        // Fallback to first visible card
+        const card = document.querySelector('.prod-card:not([style*="display: none"])');
+        if (card) card.click();
+        e.target.value = '';
+    }
+});
+
+document.getElementById('pdvBusca').addEventListener('input', renderProdutos);
+
+function adicionarItem(id, nome, precoStr, estoqueStr, ivaStr, cardEl) {
+    let qtd = parseInt(document.getElementById('pdvQtd').value) || 1;
+    const preco = parseFloat((precoStr||'').replace(',','.')) || 0;
+    if (qtd <= 0) qtd = 1;
+    const estoque = parseFloat((estoqueStr||'').replace(',','.')) || 0;
+    if (qtd > estoque) {
+        if (!confirm(`Estoque insuficiente! Disponível: ${estoque}`)) return;
+    }
+    const iva = parseFloat(ivaStr||'0') || 0;
+    const existe = carrinho.find(i => i.id === id);
+    if (existe) { existe.qtd += qtd; }
+    else { carrinho.push({id, nome, preco, qtd, iva, desconto: 0}); }
+    if (cardEl) {
+        cardEl.classList.remove('added');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('added');
+    }
+    som('sucesso');
+    renderCarrinho();
+    document.getElementById('pdvQtd').value = 1;
+    document.getElementById('pdvBusca').value = '';
+    document.getElementById('pdvBusca').focus();
+}
+
+function alterarQtd(idx, delta) {
+    if (idx < 0 || idx >= carrinho.length) return;
+    carrinho[idx].qtd += delta;
+    if (carrinho[idx].qtd <= 0) {
+        removerItem(idx);
+        return;
+    }
+    renderCarrinho();
+}
+
+function removerItem(idx) {
+    if (idx < 0 || idx >= carrinho.length) return;
+    const items = document.getElementById('cartItems');
+    const rows = items.querySelectorAll('.cart-item');
+    if (rows[idx]) {
+        rows[idx].classList.add('removing');
+        setTimeout(() => { carrinho.splice(idx, 1); renderCarrinho(); }, 250);
+    } else {
+        carrinho.splice(idx, 1);
+        renderCarrinho();
+    }
+}
+
+function alterarDescItem(idx, val) {
+    if (idx >= 0 && idx < carrinho.length) {
+        carrinho[idx].desconto = Math.max(0, Math.min(100, parseFloat(val)||0));
+        renderCarrinho();
+    }
+}
+
+function renderCarrinho() {
+    const el = document.getElementById('cartItems');
+    const totalEl = document.getElementById('cartTotal');
+    const countEl = document.getElementById('cartCount');
+    let total = 0;
+    if (carrinho.length === 0) {
+        el.innerHTML = '<div class="empty"><div class="ico">🛒</div><p>Carrinho vazio</p></div>';
+        totalEl.textContent = '0,00 MT'; countEl.textContent = '0';
+        atualizarTroco(); return;
+    }
+    let html = '';
+    carrinho.forEach((item, idx) => {
+        const descPct = item.desconto || 0;
+        const precoFinal = item.preco * (1 - descPct/100);
+        const sub = precoFinal * item.qtd;
+        total += sub;
+        html += `<div class="cart-item">
+            <span class="nome truncate" title="${item.nome}">${item.nome}</span>
+            <div class="qtd-controls">
+                <button onclick="alterarQtd(${idx},-1)">−</button>
+                <span>${item.qtd}</span>
+                <button onclick="alterarQtd(${idx},1)">+</button>
+            </div>
+            <span class="total">${moeda(sub)}</span>
+            <span class="rm" onclick="removerItem(${idx})">✕</span>
+        </div>`;
+        if (descPct > 0 || item.iva > 0) {
+            html += `<div class="cart-item-meta">
+                ${descPct>0?`<span>Desc: ${descPct}%</span>`:''}
+                ${item.iva>0?`<span>IVA ${item.iva}%</span>`:''}
+            </div>`;
+        }
+    });
+    el.innerHTML = html;
+    const descTotal = parseFloat(document.getElementById('descontoTotal').value) || 0;
+    const totalComDesc = total * (1 - descTotal/100);
+    const subtotalEl = document.getElementById('cartSubtotal');
+    const subtotalValEl = document.getElementById('cartSubtotalVal');
+    if (descTotal > 0) {
+        subtotalEl.style.display = 'flex';
+        subtotalValEl.textContent = moeda(total);
+    } else {
+        subtotalEl.style.display = 'none';
+    }
+    if (totalEl.textContent !== moeda(totalComDesc)) {
+        totalEl.textContent = moeda(totalComDesc);
+        totalEl.classList.remove('pulse');
+        void totalEl.offsetWidth;
+        totalEl.classList.add('pulse');
+    }
+    document.getElementById('paymentTotalLabel').textContent = moeda(totalComDesc);
+    countEl.textContent = carrinho.reduce((sum, item) => sum + item.qtd, 0);
+    atualizarTroco(totalComDesc);
+}
+
+let pagamentoAtual = 'Dinheiro';
+function selecionarPag(pag) {
+    pagamentoAtual = pag;
+    document.querySelectorAll('.pag-btn').forEach(b => b.classList.toggle('ativo', b.dataset.pag === pag));
+    const paymentNote = document.getElementById('paymentNote');
+    const paymentBadge = document.getElementById('paymentMethodBadge');
+    const numpadEl = document.getElementById('numpad');
+    const clienteSelect = document.getElementById('clienteSelect');
+    const clienteClearBtn = document.getElementById('clienteClearBtn');
+
+    paymentBadge.textContent = pag;
+    paymentBadge.className = 'payment-method-badge';
+    paymentNote.className = 'payment-note';
+
+    if (pag === 'Dinheiro') {
+        paymentBadge.classList.add('cash');
+        paymentNote.textContent = 'Dinheiro: digite o valor recebido no numpad.';
+        numpadEl.style.display = 'grid';
+        clienteSelect.disabled = true;
+        clienteSelect.value = '';
+        clienteClearBtn.disabled = true;
+    } else if (pag === 'Faturar') {
+        paymentBadge.classList.add('invoice');
+        paymentNote.textContent = 'Faturar: selecione o cliente e confirme o crédito.';
+        paymentNote.classList.add('warning');
+        numpadEl.style.display = 'none';
+        document.getElementById('numpad').dataset.valorPago = '';
+        clienteSelect.disabled = false;
+        clienteClearBtn.disabled = false;
+    } else if (pag === 'Cartão Débito') {
+        paymentBadge.classList.add('debit');
+        paymentNote.textContent = 'Cartão Débito: efetue o pagamento no terminal.';
+        numpadEl.style.display = 'none';
+        document.getElementById('numpad').dataset.valorPago = '';
+        clienteSelect.disabled = true;
+        clienteSelect.value = '';
+        clienteClearBtn.disabled = true;
+    } else if (pag === 'Cartão Crédito') {
+        paymentBadge.classList.add('credit');
+        paymentNote.textContent = 'Cartão Crédito: confirme o valor e finalize no terminal.';
+        numpadEl.style.display = 'none';
+        document.getElementById('numpad').dataset.valorPago = '';
+        clienteSelect.disabled = true;
+        clienteSelect.value = '';
+        clienteClearBtn.disabled = true;
+    } else {
+        paymentBadge.classList.add('transfer');
+        paymentNote.textContent = 'Transferência: confirme o pagamento de banco/pix.';
+        numpadEl.style.display = 'none';
+        document.getElementById('numpad').dataset.valorPago = '';
+        clienteSelect.disabled = true;
+        clienteSelect.value = '';
+        clienteClearBtn.disabled = true;
+    }
+    atualizarTroco();
+}
+
+function atualizarTroco(total) {
+    if (total === undefined) {
+        total = carrinho.reduce((s,i) => {
+            const pf = i.preco * (1 - (i.desconto||0)/100);
+            return s + pf * i.qtd;
+        }, 0) * (1 - (parseFloat(document.getElementById('descontoTotal').value)||0)/100);
+    }
+    const trocoDisplay = document.getElementById('trocoDisplay');
+    const trocoValor = document.getElementById('trocoValor');
+    const trocoRecebido = document.getElementById('trocoRecebido');
+    const numpadEl = document.getElementById('numpad');
+    if (pagamentoAtual === 'Dinheiro') {
+        numpadEl.style.display = 'grid';
+        trocoDisplay.style.display = 'block';
+        const pago = parseFloat(document.getElementById('numpad').dataset.valorPago) || total;
+        trocoRecebido.textContent = moeda(pago);
+        const troco = pago - total;
+        trocoValor.textContent = troco >= 0 ? moeda(troco) : '— ' + moeda(Math.abs(troco));
+        trocoValor.className = 'valor' + (troco < 0 ? ' negativo' : '');
+        trocoDisplay.className = 'troco-display' + (troco < 0 && pago < total ? ' valor-pendente' : '');
+    } else {
+        numpadEl.style.display = 'none';
+        numpadEl.dataset.valorPago = '';
+        trocoDisplay.style.display = 'none';
+    }
+}
+
+// Numpad
+let numpadBuffer = '';
+document.getElementById('numpad').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn || !btn.dataset.num) return;
+    const num = btn.dataset.num;
+    if (num === 'enter') { finalizarVenda(); return; }
+    if (num === 'limpar') { numpadBuffer = ''; document.getElementById('numpad').dataset.valorPago = ''; atualizarTroco(); return; }
+    if (num === 'back') { numpadBuffer = numpadBuffer.slice(0, -1); document.getElementById('numpad').dataset.valorPago = numpadBuffer || ''; atualizarTroco(); return; }
+    if (num === '.' && numpadBuffer.includes('.')) return;
+    if (num !== '.' && numpadBuffer === '0') numpadBuffer = '';
+    numpadBuffer += num;
+    document.getElementById('numpad').dataset.valorPago = numpadBuffer;
+    if (pagamentoAtual === 'Dinheiro') {
+        const pago = parseFloat(numpadBuffer.replace(',','.')) || 0;
+        document.getElementById('numpad').dataset.valorPago = pago;
+        atualizarTroco();
+    }
+});
+
+function limparCarrinho() {
+    if (carrinho.length === 0) return;
+    if (!confirm('Limpar carrinho?')) return;
+    carrinho.length = 0; numpadBuffer = '';
+    document.getElementById('numpad').dataset.valorPago = '';
+    document.getElementById('descontoTotal').value = '0';
+    renderCarrinho();
+}
+
+async function finalizarVenda() {
+    if (carrinho.length === 0) { notif('Carrinho vazio!', true); som('erro'); return; }
+    const total = carrinho.reduce((s,i) => {
+        const pf = i.preco * (1 - (i.desconto||0)/100);
+        return s + pf * i.qtd;
+    }, 0) * (1 - (parseFloat(document.getElementById('descontoTotal').value)||0)/100);
+    if (pagamentoAtual === 'Dinheiro') {
+        const pago = parseFloat(document.getElementById('numpad').dataset.valorPago) || 0;
+        if (pago < total) { notif(`Valor insuficiente — Total: ${moeda(total)}`, true); som('erro'); return; }
+    }
+    if (pagamentoAtual === 'Faturar') {
+        const sel = document.getElementById('clienteSelect');
+        if (!sel.value) { notif('Selecione um cliente para faturar!', true); som('erro'); return; }
+        // Check credit limit
+        const cli = {{clientes|tojson}}.find(c => c.id == sel.value);
+        if (cli && (parseFloat(cli.saldo||0) + total) > parseFloat(cli.limite_credito||0)) {
+            if (!confirm(`Cliente ${cli.nome} irá exceder o limite de crédito (${moeda(cli.limite_credito)}). Continuar?`)) return;
+        }
+    }
+    if (!await notifConfirm(`Confirmar venda de ${moeda(total)}?`)) return;
+    const clienteSel = document.getElementById('clienteSelect');
+    const clienteId = clienteSel.value || null;
+    const clienteNome = clienteSel.options[clienteSel.selectedIndex]?.text?.split('·')[0]?.trim() || 'Consumidor Final';
+    const descPct = parseFloat(document.getElementById('descontoTotal').value) || 0;
+    const res = await fetch('/api/vender', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+            itens: carrinho.map(i => ({
+                id: i.id, nome: i.nome, quantidade: i.qtd,
+                preco: i.preco, desconto: i.desconto||0,
+                preco_final: i.preco * (1 - (i.desconto||0)/100) * (1 - descPct/100)
+            })),
+            pagamento: pagamentoAtual, cliente: clienteNome, cliente_id: clienteId,
+            desconto_total: descPct,
+            data: document.getElementById('vendaData').value || undefined,
+            filial_id: parseInt(document.getElementById('filialSelect').value) || 1
+        })
+    }).then(r => r.json());
+    if (res.ok) {
+        notif(`Venda concluída — ${moeda(total)}`);
+        som('sucesso');
+        const totalFinal = total;
+        mostrarRecibo([...carrinho], totalFinal, pagamentoAtual, clienteNome, parseFloat(document.getElementById('numpad').dataset.valorPago) || 0);
+        carrinho.length = 0; numpadBuffer = '';
+        document.getElementById('numpad').dataset.valorPago = '';
+        document.getElementById('descontoTotal').value = '0';
+        renderCarrinho();
+        document.getElementById('pdvBusca').focus();
+    } else { 
+        const errMsg = (res.erros||[]).join(', ');
+        if (errMsg.includes('Caixa fechado')) {
+            notif(errMsg, true); som('erro');
+            setTimeout(() => {
+                if (confirm('Caixa fechado! Ir para página de Caixa para abrir?')) window.location.href='/caixa';
+            }, 600);
+        } else {
+            notif('Erro: '+errMsg, true); som('erro');
+        }
+    }
+}
+
+function mostrarRecibo(itens, total, pag, cliente, valorPago) {
+    const agora = new Date();
+    const data = agora.toLocaleDateString('pt-PT')+' '+agora.toLocaleTimeString('pt-PT');
+    const nf = (v) => moeda(v);
+    const pedidoId = Math.random().toString(36).slice(2,8).toUpperCase();
+    let html = `<div class="recibo-preview">
+        <div class="header">
+            <div class="nome-loja">${lojaNome}</div>
+            ${lojaNif ? `<div class="info">${lojaNif}</div>` : ''}
+            ${lojaEnd ? `<div class="info">${lojaEnd}</div>` : ''}
+            ${lojaTel ? `<div class="info">${lojaTel}</div>` : ''}
+        </div>
+        <div class="info-row">
+            <span>Pedido: <strong>${pedidoId}</strong></span>
+            <span>${data}</span>
+            <span>Pagamento: <strong>${pag}</strong></span>
+        </div>
+        <div class="info-row">
+            <span>Cliente: <strong>${cliente}</strong></span>
+            <span>Data venda: ${document.getElementById('vendaData').value || agora.toLocaleDateString('pt-PT')}</span>
+        </div>
+        <div class="divisoria"></div>`;
+    const descPct = parseFloat(document.getElementById('descontoTotal').value) || 0;
+    let subTotal = 0;
+    itens.forEach(i => {
+        const pf = i.preco * (1 - (i.desconto||0)/100) * (1 - descPct/100);
+        const sub = pf * i.qtd;
+        subTotal += sub;
+        html += `<div class="item-row"><span class="item-name">${i.nome}</span><span class="item-qty">${i.qtd}×</span><span class="item-price">${nf(sub)}</span></div>`;
+        if (i.desconto > 0) html += `<div class="note" style="text-align:right">Desc. item: ${i.desconto}%</div>`;
+    });
+    if (descPct > 0) html += `<div class="note" style="text-align:right">Desconto total: ${descPct}%</div>`;
+    html += `<div class="divisoria"></div>`;
+    html += `<div class="summary-row"><span>Subtotal</span><span>${nf(subTotal)}</span></div>`;
+    html += `<div class="summary-row total"><span>TOTAL</span><span>${nf(total)}</span></div>`;
+    if (pag === 'Dinheiro' && valorPago > 0) {
+        html += `<div class="summary-row"><span>Recebido</span><span>${nf(valorPago)}</span></div>`;
+        html += `<div class="summary-row"><span>Troco</span><span class="val">${nf(Math.max(0, valorPago - total))}</span></div>`;
+    }
+    html += `<div class="divisoria"></div>`;
+    html += `<div class="note">Obrigado pela preferência! Visite-nos novamente.</div>`;
+    html += `</div>`;
+    document.getElementById('reciboConteudo').innerHTML = html;
+    document.getElementById('modalRecibo').classList.add('open');
+}
+
+function fecharRecibo() { document.getElementById('modalRecibo').classList.remove('open'); }
+
+function atualizarStatusCaixa() {
+    const el = document.getElementById('caixaStatusPdv');
+    fetch('/api/caixa/status').then(r=>r.json()).then(s => {
+        if (s.aberto) {
+            el.innerHTML = '🟢 Caixa';
+            el.style.color = 'var(--sucesso)';
+            el.style.borderColor = 'rgba(34,197,94,0.3)';
+        } else {
+            el.innerHTML = '🔴 Fechado';
+            el.style.color = 'var(--aviso)';
+            el.style.borderColor = 'rgba(234,179,8,0.3)';
+        }
+    }).catch(() => { el.innerHTML = '⏳'; });
+}
+
+function imprimirRecibo() {
+    const c = document.getElementById('reciboConteudo').innerHTML;
+    const w = window.open('','','width=320,height=600');
+    w.document.write('<html><head><meta charset="utf-8"><style>body{font-family:"Courier New",monospace;font-size:12px;padding:16px;color:#000;width:280px;margin:0 auto;background:#fff}*{color:#000!important}.divisoria-dupla{border-top:3px double #000;margin:8px 0}.divisoria{border-top:1px dashed #999;margin:6px 0}.item-row,.total-row,.summary-row,.pag-row,.troco-row{display:flex;justify-content:space-between}.total-row,.summary-row{font-weight:700;font-size:14px}.summary-row.total{font-size:16px}.troco-row .val{color:#22c55e!important;font-weight:700}.barras{text-align:center;font-size:28px;margin:6px 0}.footer{text-align:center;margin-top:12px;color:#999!important;font-size:10px}.nome-loja{font-size:16px;font-weight:700;letter-spacing:2px}</style></head><body>'+c+'</body></html>');
+    w.document.close();
+    setTimeout(()=>{w.focus(); w.print();}, 300);
+}
+
+function exportarTxt() {
+    const c = document.getElementById('reciboConteudo').innerText || document.getElementById('reciboConteudo').textContent;
+    const blob = new Blob([c], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `recibo_${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+// Events
+document.getElementById('btnFinalizar').addEventListener('click', finalizarVenda);
+document.getElementById('descontoTotal').addEventListener('input', () => renderCarrinho());
+
+document.querySelectorAll('.prod-card').forEach(card => {
+    card.addEventListener('click', () => adicionarItem(card.dataset.id, card.dataset.nome, card.dataset.preco, card.dataset.estoque, card.dataset.iva, card));
+});
+
+document.getElementById('catFiltros').addEventListener('click', e => {
+    if (e.target.classList.contains('cat-chip')) {
+        document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('ativo'));
+        e.target.classList.add('ativo');
+        catAtiva = e.target.dataset.cat;
+        renderProdutos();
+    }
+});
+
+document.getElementById('pagBotoes').addEventListener('click', e => {
+    const btn = e.target.closest('.pag-btn');
+    if (btn) selecionarPag(btn.dataset.pag);
+});
+
+// Campos navegáveis com setas
+const camposFormulario = [
+    'pdvBusca',
+    'pdvQtd',
+    'clienteSelect',
+    'vendaData',
+    'filialSelect',
+    'descontoTotal'
+];
+
+function focarCampo(idx) {
+    if (idx < 0) idx = camposFormulario.length - 1;
+    if (idx >= camposFormulario.length) idx = 0;
+    const campo = document.getElementById(camposFormulario[idx]);
+    if (campo && !campo.disabled) {
+        campo.focus();
+        if (campo.select) campo.select();
+        return true;
+    }
+    return false;
+}
+
+document.addEventListener('keydown', e => {
+    // Tab / Shift+Tab para navegar entre campos
+    if (e.key === 'Tab') {
+        const currentId = e.target?.id;
+        if (currentId && camposFormulario.includes(currentId)) {
+            e.preventDefault();
+            const currentIdx = camposFormulario.indexOf(currentId);
+            let nextIdx = e.shiftKey ? currentIdx - 1 : currentIdx + 1;
+
+            // Tenta o proximo; se estiver disabled, pula ate achar um habilitado
+            for (let tentativa = 0; tentativa < camposFormulario.length; tentativa++) {
+                if (focarCampo(nextIdx)) break;
+                nextIdx += e.shiftKey ? -1 : 1;
+                if (nextIdx < 0) nextIdx = camposFormulario.length - 1;
+                if (nextIdx >= camposFormulario.length) nextIdx = 0;
+            }
+        }
+        return;
+    }
+
+    // Navegação com setas ↑↓ entre campos
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const currentId = e.target?.id;
+        if (currentId && camposFormulario.includes(currentId)) {
+            e.preventDefault();
+            const currentIdx = camposFormulario.indexOf(currentId);
+            let nextIdx = e.key === 'ArrowDown' ? currentIdx + 1 : currentIdx - 1;
+            for (let tentativa = 0; tentativa < camposFormulario.length; tentativa++) {
+                if (focarCampo(nextIdx)) break;
+                nextIdx += e.key === 'ArrowDown' ? 1 : -1;
+                if (nextIdx < 0) nextIdx = camposFormulario.length - 1;
+                if (nextIdx >= camposFormulario.length) nextIdx = 0;
+            }
+        }
+    }
+    
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('modalRecibo');
+        if (modal.classList.contains('open')) {
+            fecharRecibo();
+        } else {
+            document.getElementById('pdvBusca').value = '';
+            renderProdutos();
+        }
+    }
+    if (e.key === 'F8') { e.preventDefault(); document.getElementById('pdvBusca').focus(); }
+    if (e.key === 'F2') { e.preventDefault(); document.getElementById('pdvQtd').focus(); document.getElementById('pdvQtd').select(); }
+    if ((e.ctrlKey||e.metaKey) && e.key === 'Enter') finalizarVenda();
+});
+
+// ─── Thermal Printing (ESC/POS via WebUSB) ──────────────
+async function imprimirTermico() {
+    if (!navigator.usb) { notif('WebUSB não suportado neste navegador. Use Chrome/Edge.', true); return; }
+    try {
+        const device = await navigator.usb.requestDevice({ filters: [] });
+        await device.open();
+        if (device.configuration === null) await device.selectConfiguration(1);
+        await device.claimInterface(0);
+
+        const encoder = new TextEncoder();
+        const write = async (data) => {
+            if (typeof data === 'string') data = encoder.encode(data);
+            await device.transferOut(1, data);
+        };
+
+        // ESC/POS commands
+        const ESC = '\x1b', GS = '\x1d', LF = '\x0a';
+        const init = ESC + '@';  // Initialize printer
+        const alignCenter = ESC + 'a' + '\x01';
+        const alignLeft = ESC + 'a' + '\x00';
+        const boldOn = ESC + 'E' + '\x01';
+        const boldOff = ESC + 'E' + '\x00';
+        const doubleH = ESC + 'd' + '\x01';
+        const cut = GS + 'V' + '\x00';
+
+        await write(init);
+        await write(alignCenter);
+        await write(boldOn);
+        await write(lojaNome.substring(0, 32) + LF);
+        await write(boldOff);
+        if (lojaNif) await write(lojaNif + LF);
+        if (lojaEnd) await write(lojaEnd.substring(0, 32) + LF);
+        if (lojaTel) await write(lojaTel + LF);
+        await write('─'.repeat(28) + LF);
+        await write(new Date().toLocaleDateString('pt-PT') + ' ' + new Date().toLocaleTimeString('pt-PT') + LF);
+        await write('─'.repeat(28) + LF);
+        await write(alignLeft);
+
+        const carrinhoAtual = [...carrinho];
+        for (const i of carrinhoAtual) {
+            const pf = i.preco * (1 - (i.desconto||0)/100);
+            const sub = pf * i.qtd;
+            const linha = `${i.nome.substring(0, 16)} ${i.qtd}x ${sub.toFixed(2)}MT`;
+            const espacos = Math.max(0, 28 - linha.length);
+            await write(linha + ' '.repeat(espacos) + LF);
+            if (i.desconto > 0) await write(`  Desc: ${i.desconto}%` + LF);
+        }
+
+        await write('─'.repeat(28) + LF);
+        await write(alignCenter);
+        await write(`TOTAL: ${carrinho.reduce((s,i)=>{const pf=i.preco*(1-(i.desconto||0)/100);return s+pf*i.qtd;},0).toFixed(2)} MT` + LF);
+        if (pagamentoAtual === 'Dinheiro') {
+            const pago = parseFloat(document.getElementById('numpad').dataset.valorPago) || 0;
+            if (pago > 0) {
+                await write(`Recebido: ${pago.toFixed(2)} MT` + LF);
+                await write(`Troco: ${(pago - carrinho.reduce((s,i)=>{const pf=i.preco*(1-(i.desconto||0)/100);return s+pf*i.qtd;},0)).toFixed(2)} MT` + LF);
+            }
+        }
+        await write(LF + LF);
+        await write('Obrigado pela preferência!' + LF);
+        await write(LF + LF + LF + LF + LF);
+        await write(cut);
+
+        await device.close();
+        notif('Impressão térmica enviada!');
+    } catch (e) {
+        if (e.name === 'NotFoundError') { notif('Nenhuma impressora selecionada', true); return; }
+        notif('Erro na impressão térmica: ' + e.message, true);
+    }
+}
+
+document.getElementById('vendaData').valueAsDate = new Date();
+renderProdutos(); renderCarrinho(); selecionarPag('Dinheiro'); atualizarStatusCaixa();
+</script>
+{% endblock %}
